@@ -1,0 +1,34 @@
+# heall.rexial.in: the install script and the dashboard, as static files.
+# Caddy gets and renews the HTTPS certificate by itself.
+#
+# HEALL_SITE replaces the address when testing, for example ":8080".
+{$HEALL_SITE:heall.rexial.in} {
+	root * /var/www/heall
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# curl -fsSL https://heall.rexial.in/install | sh
+	@install path /install /install.sh
+	handle @install {
+		header Content-Type "text/plain; charset=utf-8"
+		header Cache-Control "no-cache"
+		rewrite * /install.sh
+		file_server
+	}
+
+	# This site holds no runs: the dashboard here shows the recorded samples.
+	# Answering clearly lets the page tell that at once.
+	handle /api/* {
+		respond "no runs are served here; run `heall serve` on your own machine" 404
+	}
+
+	handle {
+		try_files {path} {path}.html {path}/index.html
+		file_server
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,8 +32,8 @@ const eventsFile = "events.jsonl"
 type Server struct {
 	// RunsDir holds one directory per run.
 	RunsDir string
-	// WebDir is the built dashboard to serve at /; empty serves the API only.
-	WebDir string
+	// Web is the built dashboard to serve at /; nil serves the API only.
+	Web fs.FS
 	// Poll is how often a run in progress is checked for new events.
 	Poll time.Duration
 	// Idle is how long a run may go without a new event before the stream
@@ -58,8 +59,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/runs", s.listRuns)
 	mux.HandleFunc("GET /api/runs/{id}/events", s.streamRun)
-	if s.WebDir != "" {
-		mux.Handle("/", http.FileServer(http.Dir(s.WebDir)))
+	if s.Web != nil {
+		mux.Handle("/", http.FileServerFS(s.Web))
 	}
 	return allowLocalOrigins(mux)
 }

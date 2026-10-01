@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"heall/embedded"
 	"heall/internal/server"
 )
 
@@ -29,19 +31,26 @@ serves those recordings to the dashboard, following a run that is still in
 progress, so a run started in another terminal appears live. Runs need no
 extra flag to be watchable.
 
-The dashboard itself is the static build in web/out ("make web"). Without it,
-only the API is served, which is enough for the dev server ("pnpm dev" in
-web/).`,
+An installed heall has the dashboard built in. In a source checkout it is the
+static build in web/out ("make web"); without that, only the API is served,
+which is enough for the dev server ("pnpm dev" in web/).`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir, err := filepath.Abs(runsDir)
 			if err != nil {
 				return err
 			}
+			// A dashboard built in the source tree wins, so edits show up; an
+			// installed heall serves the copy built into it.
 			if webDir == "" {
 				webDir = server.FindWebDir()
 			}
-			srv := &server.Server{RunsDir: dir, WebDir: webDir}
+			srv := &server.Server{RunsDir: dir}
+			if webDir != "" {
+				srv.Web = os.DirFS(webDir)
+			} else if web, ok := embedded.Web(); ok {
+				srv.Web = web
+			}
 			// Local only: the event stream holds source code and test output.
 			ln, err := net.Listen("tcp", server.Addr(port))
 			if err != nil {
@@ -50,7 +59,7 @@ web/).`,
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "heall dashboard: http://localhost:%d\n", port)
 			fmt.Fprintf(out, "  runs from %s\n", dir)
-			if webDir == "" {
+			if srv.Web == nil {
 				fmt.Fprintln(out, "  the dashboard is not built (run \"make web\"); serving the API only")
 			}
 			fmt.Fprintln(out, "  press Ctrl-C to stop")

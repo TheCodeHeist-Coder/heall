@@ -2,5 +2,5 @@
 name = "heall-agent"
 version = "0.1.0"
 description = "The heal stage of heall: an LLM tool loop that proposes a fix or escalates"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = []

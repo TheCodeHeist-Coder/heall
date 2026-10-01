@@ -1,7 +1,20 @@
-.PHONY: build web serve demo e2e preflight benchmark evaluate test test-cli test-agent test-web
+.PHONY: build embed release web serve demo e2e preflight benchmark evaluate test test-cli test-agent test-web
 
-build:
+# The agent, and the dashboard if it has been built, are copied into the Go
+# tree first so that the binary carries them and runs from anywhere.
+build: embed
 	cd cli && go build -o ../bin/heall .
+
+embed:
+	rm -rf cli/embedded/agent/heall_agent
+	mkdir -p cli/embedded/agent/heall_agent
+	cp agent/heall_agent/*.py cli/embedded/agent/heall_agent/
+	find cli/embedded/web -mindepth 1 ! -name PLACEHOLDER -delete
+	if [ -f web/out/index.html ]; then cp -R web/out/. cli/embedded/web/; fi
+
+# Release archives for Linux and macOS in dist/, with checksums.
+release: web
+	scripts/release.sh
 
 # The dashboard as static files in web/out, which `heall serve` hands out.
 web:

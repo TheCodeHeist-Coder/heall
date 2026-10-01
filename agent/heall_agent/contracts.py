@@ -144,7 +144,10 @@ def _build(tp: Any, value: Any, path: str) -> Any:
     raise ContractError(f"{path}: unsupported type {tp!r}")
 
 
-def parse[T](tp: type[T], raw: str | bytes) -> T:
+T = typing.TypeVar("T")
+
+
+def parse(tp: type[T], raw: str | bytes) -> T:
     """Parse JSON into the dataclass tp, rejecting unknown or missing fields."""
     try:
         value = json.loads(raw)

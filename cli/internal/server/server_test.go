@@ -30,7 +30,7 @@ func setup(t *testing.T) (*httptest.Server, string) {
 	if err := os.WriteFile(filepath.Join(web, "index.html"), []byte("<title>heall</title>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{RunsDir: dir, WebDir: web, Poll: 10 * time.Millisecond, Idle: 400 * time.Millisecond}
+	s := &Server{RunsDir: dir, Web: os.DirFS(web), Poll: 10 * time.Millisecond, Idle: 400 * time.Millisecond}
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 	return ts, dir

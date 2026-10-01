@@ -42,11 +42,13 @@ class ChatModel(Protocol):
 def load_env_file() -> None:
     """Load KEY=VALUE lines from a .env file without overriding the environment.
 
-    Looked for in $HEALL_ENV_FILE, the working directory, and the project
-    root above this package.
+    Looked for in $HEALL_ENV_FILE, the working directory, ~/.config/heall/env
+    (where `heall init` suggests keeping the key), and the project root above
+    this package.
     """
     here = Path(__file__).resolve().parent
-    candidates = [os.environ.get("HEALL_ENV_FILE"), ".env", here.parent / ".env", here.parent.parent / ".env"]
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "heall" / "env"
+    candidates = [os.environ.get("HEALL_ENV_FILE"), ".env", config, here.parent / ".env", here.parent.parent / ".env"]
     for candidate in candidates:
         if not candidate:
             continue

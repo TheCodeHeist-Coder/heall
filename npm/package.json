@@ -1,0 +1,31 @@
+{
+  "name": "heall",
+  "version": "0.1.0",
+  "description": "Self-healing CI agent: finds the commit that broke the build, proves a fix in a sandbox, or says why it cannot",
+  "bin": {
+    "heall": "bin/heall.js"
+  },
+  "files": [
+    "bin/heall.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheCodeHeist-Coder/heall.git"
+  },
+  "homepage": "https://github.com/TheCodeHeist-Coder/heall#readme",
+  "keywords": [
+    "ci",
+    "bisect",
+    "agent",
+    "testing",
+    "developer-tools"
+  ]
+}

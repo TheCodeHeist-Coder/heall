@@ -57,34 +57,68 @@ and [docs/benchmark.md](docs/benchmark.md). Both are produced by scripts in
 this repository and can be reproduced with `scripts/evaluate.py` and
 `scripts/benchmark.py`.
 
-## Quick start
+## Install
 
-You need Go 1.25+, Python 3.12+, Docker, and Node 24 with pnpm (for the demo
-repository and the dashboard). The agent needs a [Groq](https://console.groq.com)
-API key.
+```
+npm install -g heall
+```
+
+Or skip the install and run it straight away with `npx heall init`. Without
+npm, use the install script:
+
+```
+curl -fsSL https://heall.rexial.in/install | sh
+```
+
+Either way you get one self-contained program, for Linux and macOS (on
+Windows, use WSL), checked against its published checksum before it is run.
+heall also needs `git`, Docker and Python 3.10 or newer on the machine, and a
+[Groq](https://console.groq.com) API key.
+
+## Use it on your repository
+
+```
+cd your-project
+heall init                                  # writes .heall.yaml and checks the machine
+heall run --good <last green commit> --dry-run
+```
+
+`heall init` looks at the project, proposes the test commands, the Docker
+image and which paths a fix may touch, and tells you what is missing. Put
+your Groq key where it says (`~/.config/heall/env`). Read the `.heall.yaml`
+it writes: it is short, and it decides what the agent may change.
+
+`--dry-run` saves the patch and a report under `.heall/` and touches nothing
+else. Without it, and with `gh auth login` done, a verified fix is pushed to
+a `heall/fix-…` branch and opened as a draft pull request.
+
+To watch runs in the browser, run `heall serve` in another terminal and open
+`http://localhost:7777`. A run started anywhere in that repository appears by
+itself.
+
+**What works today.** JavaScript projects tested with Node's built-in runner
+(`node --test`) and no npm dependencies. Tests run in a fresh checkout inside
+a container with no network, so there is no `npm install` step yet; projects
+that need one, and other test runners such as Jest, are not supported yet.
+`heall init` says so when it sees them.
+
+## Try it on the demo repository
+
+From a clone of this repository, with Go 1.25+, Node 24 and pnpm as well:
 
 ```
 cp .env.example .env        # then put your Groq key in .env
-make build web demo         # the CLI, the dashboard, the demo repository
+make web build demo         # the dashboard, the CLI, the demo repository
 scripts/preflight.sh        # checks that everything is in place
-```
-
-Run it on a seeded bug, without touching GitHub:
-
-```
 bin/heall run --repo demo/out/repo --good main --bad bug/off-by-one --dry-run
 ```
-
-Watch a run in the browser: start `make serve`, open `http://localhost:7777`,
-and start a run in another terminal. It appears by itself.
-
-Without `--dry-run`, and with `gh auth login` done and the repository pushed
-to GitHub, the fix is opened as a draft pull request.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
+| `heall init` | Connect a repository: write its `.heall.yaml` and check the machine |
+| `heall doctor` | Check that this machine has what a run needs |
 | `heall run` | The whole pipeline, from a failing build to a pull request or a diagnosis |
 | `heall triage [log]` | Find the failing test in a test log, or by running the suite |
 | `heall reproduce` | Confirm the failure is real and not flaky |
@@ -177,3 +211,10 @@ make e2e      # the whole pipeline on the demo repository, with scripted model r
 ```
 
 `make e2e` needs no API key. For the demo, see [docs/demo.md](docs/demo.md).
+
+`make build` copies the agent and the built dashboard into the Go tree, so the
+binary carries both and runs from anywhere. `make release` builds the archives
+for Linux and macOS in `dist/` and sets the npm package to the same version.
+Publish with `gh release create <tag> dist/*.tar.gz dist/checksums.txt`, then
+`npm publish` in `npm/`. The npm package and the install script both download
+the binary from that release, so the release has to exist first.

@@ -17,3 +17,11 @@ __pycache__/
 # secrets
 .env
 .env.*
+
+# copied in by `make build`; see cli/embedded/embedded.go
+/cli/embedded/agent/heall_agent/
+/cli/embedded/web/*
+!/cli/embedded/web/PLACEHOLDER
+
+# release archives
+/dist/

@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"heall/embedded"
 	"heall/internal/agentio"
 	"heall/internal/config"
 	"heall/internal/events"
@@ -73,7 +74,9 @@ type Result struct {
 }
 
 // AgentCommand works out how to start the agent: $HEALL_AGENT_CMD if set,
-// otherwise the Python package in the agent directory next to this program.
+// then the Python package in an agent directory next to this program (a
+// source checkout, so edits take effect at once), then the copy built into
+// the program.
 func AgentCommand() ([]string, []string, error) {
 	if custom := strings.Fields(os.Getenv("HEALL_AGENT_CMD")); len(custom) > 0 {
 		return custom, nil, nil
@@ -96,6 +99,14 @@ func AgentCommand() ([]string, []string, error) {
 			env := []string{"PYTHONPATH=" + abs + string(os.PathListSeparator) + os.Getenv("PYTHONPATH")}
 			return []string{"python3", "-m", "heall_agent"}, env, nil
 		}
+	}
+	// An installed heall carries the agent inside itself.
+	if embedded.HasAgent() {
+		dir, err := embedded.ExtractAgent()
+		if err != nil {
+			return nil, nil, fmt.Errorf("unpack the heal agent: %w", err)
+		}
+		return []string{"python3", "-m", "heall_agent"}, []string{"PYTHONPATH=" + dir + string(os.PathListSeparator) + os.Getenv("PYTHONPATH")}, nil
 	}
 	return nil, nil, errors.New("cannot find the heal agent; set HEALL_AGENT_DIR to the directory that holds heall_agent")
 }

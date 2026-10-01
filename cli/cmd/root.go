@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"heall/embedded"
 	"heall/internal/pipeline"
 )
 
@@ -23,6 +24,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:           "heall",
 	Short:         "Self-healing CI agent: find the culprit, prove the fix, or escalate",
+	Version:       embedded.Version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
@@ -63,6 +65,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "path to .heall.yaml (default: <repo>/.heall.yaml)")
 
 	rootCmd.AddCommand(
+		newInitCmd(),
+		newDoctorCmd(),
 		newRunCmd(),
 		newTriageCmd(),
 		newReproduceCmd(),
