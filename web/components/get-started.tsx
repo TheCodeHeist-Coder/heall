@@ -49,6 +49,60 @@ const STEPS: { title: string; text: React.ReactNode; command: string }[] = [
   },
 ];
 
+// Every command, grouped by what a user is trying to do. The capitalised
+// words are the parts to replace.
+const REFERENCE: { group: string; note?: string; commands: { command: string; text: string }[] }[] = [
+  {
+    group: "Everyday",
+    commands: [
+      { command: "heall init", text: "Connect the repository you are in: writes .heall.yaml and checks your machine." },
+      { command: "heall doctor", text: "Check that Docker, Python, your Groq key and the GitHub CLI are in place." },
+      { command: "heall serve", text: "Open the dashboard at http://localhost:7777. Leave it running in its own terminal." },
+      {
+        command: "heall run --good LAST_GREEN_COMMIT --dry-run",
+        text: "Find the culprit and a verified fix. The patch and a report are saved under .heall/; nothing is pushed.",
+      },
+      {
+        command: "heall run --good LAST_GREEN_COMMIT",
+        text: "The same, and open a draft pull request with the fix. Needs the repository on GitHub and gh auth login.",
+      },
+      { command: "heall pr .heall/RUN_ID", text: "Open the pull request for a fix that an earlier dry run saved." },
+    ],
+  },
+  {
+    group: "Telling heall where the failure is",
+    commands: [
+      {
+        command: "heall run --good LAST_GREEN_COMMIT --bad BRANCH",
+        text: "Heal another branch or commit than the one you are on.",
+      },
+      { command: "heall run --good LAST_GREEN_COMMIT --log test-output.log", text: "Read the failing test from a saved test log instead of running the suite." },
+      { command: "heall run --good LAST_GREEN_COMMIT --run-id RUN_ID", text: "Read it from a failed GitHub Actions run." },
+    ],
+  },
+  {
+    group: "One stage at a time",
+    note: "heall run does all of these in order. Run one by itself to see or repeat a single stage.",
+    commands: [
+      { command: "heall triage test-output.log", text: "Which test failed, where, and which files to look at first." },
+      { command: 'heall reproduce --good LAST_GREEN_COMMIT --test "TEST NAME"', text: "Is the failure real, or is the test flaky?" },
+      { command: 'heall locate --good LAST_GREEN_COMMIT --test "TEST NAME"', text: "Which commit introduced the failure." },
+      {
+        command: 'heall heal --good LAST_GREEN_COMMIT --test "TEST NAME" --culprit CULPRIT_COMMIT',
+        text: "Ask the agent for a fix for a known culprit, and verify it.",
+      },
+    ],
+  },
+  {
+    group: "Help",
+    commands: [
+      { command: "heall --help", text: "List every command." },
+      { command: "heall run --help", text: "Every option of one command. Works for each command." },
+      { command: "heall --version", text: "Which version is installed." },
+    ],
+  },
+];
+
 // A command with a button that copies it. The button says so for a moment,
 // in words as well as by its icon.
 export function Command({ text }: { text: string }) {
@@ -139,6 +193,51 @@ export function GetStarted({ onDashboard }: { onDashboard: () => void }) {
           <span className="font-semibold text-ink">Works today with:</span> JavaScript projects tested with Node&apos;s
           built-in runner (<span className="font-mono">node --test</span>) that have no npm dependencies.
         </div>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-line bg-surface" aria-labelledby="good-commit">
+        <h3 id="good-commit" className="border-b border-line px-5 py-3 text-sm font-semibold">
+          What to put for LAST_GREEN_COMMIT
+        </h3>
+        <div className="space-y-3 p-5 text-sm text-ink-2">
+          <p>
+            Any earlier commit where your tests passed. heall searches from there to where you are now. List your
+            commits and copy the short code at the start of a line from before the tests broke:
+          </p>
+          <Command text="git log --oneline" />
+          <p>
+            A branch name (<span className="font-mono">main</span>), a tag (<span className="font-mono">v1.2.0</span>) or
+            a count back from now (<span className="font-mono">HEAD~20</span>) work as well. It need not be the very
+            last passing commit: an older one only makes the search a little longer. If the tests fail there too, heall
+            says so and changes nothing, and you try an earlier one.
+          </p>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-line bg-surface" aria-labelledby="commands">
+        <h3 id="commands" className="border-b border-line px-5 py-3 text-sm font-semibold">
+          All commands
+        </h3>
+        <div className="space-y-6 p-5">
+          {REFERENCE.map((group) => (
+            <div key={group.group}>
+              <h4 className="text-xs font-semibold tracking-wide text-muted uppercase">{group.group}</h4>
+              {group.note && <p className="mt-1 text-sm text-ink-2">{group.note}</p>}
+              <ul className="mt-2 space-y-3">
+                {group.commands.map((c) => (
+                  <li key={c.command} className="space-y-1.5">
+                    <Command text={c.command} />
+                    <p className="text-sm text-ink-2">{c.text}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <p className="border-t border-line px-5 py-3 text-xs text-ink-2">
+          <span className="font-semibold text-ink">How a command ends:</span> exit code 0 means it succeeded, 3 means
+          heall stopped on purpose and explained why, and 1 is an error.
+        </p>
       </section>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
