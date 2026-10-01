@@ -16,25 +16,14 @@ import (
 	"heall/internal/console"
 	"heall/internal/events"
 	"heall/internal/gitx"
+	"heall/internal/pipeline"
 	"heall/internal/sandbox"
-	"heall/internal/tester"
+	"heall/internal/verify"
 )
 
 // ExitEscalated is the exit code when heall stopped on purpose because it
 // could not prove something, as opposed to failing with an error (1).
 const ExitEscalated = 3
-
-// Escalation is returned by a command that stopped the pipeline with an
-// explanation. It has already been reported on the event stream.
-type Escalation struct {
-	Stage     events.Stage
-	Reason    string
-	Diagnosis string
-}
-
-func (e *Escalation) Error() string {
-	return fmt.Sprintf("escalated at %s: %s", e.Stage, e.Reason)
-}
 
 // commonFlags are shared by the commands that run a stage.
 type commonFlags struct {
@@ -52,13 +41,9 @@ func (f *commonFlags) register(cmd *cobra.Command) {
 // session is what every stage command needs: the repository, its config, a
 // sandbox, and an event stream that is also printed for people.
 type session struct {
-	repo    *gitx.Repo
-	cfg     config.Config
-	runner  sandbox.Runner
-	emitter *events.Emitter
+	*pipeline.Pipeline
 	printer *console.Printer
 	flags   commonFlags
-	runID   string
 	out     io.Writer
 	closers []func()
 }
@@ -84,31 +69,51 @@ func openSession(cmd *cobra.Command, flags commonFlags) (*session, error) {
 		return nil, err
 	}
 
-	s := &session{repo: repo, cfg: cfg, runner: runner, flags: flags, out: cmd.OutOrStdout()}
+	stderr := cmd.ErrOrStderr()
+	warn := func(message string) { fmt.Fprintf(stderr, "warning: %s\n", message) }
+	s := &session{flags: flags, out: cmd.OutOrStdout()}
 	s.closers = append(s.closers, func() {
 		if err := runner.Close(); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: sandbox cleanup: %v\n", err)
+			warn("sandbox cleanup: " + err.Error())
 		}
 	})
 	// With --json, stdout carries only the result.
 	human := cmd.OutOrStdout()
 	if flags.asJSON {
-		human = cmd.ErrOrStderr()
+		human = stderr
 	}
-	var sinks []io.Writer
+	runID := newRunID()
+	emitter := events.NewEmitter(runID)
 	if flags.eventsPath != "" {
-		f, err := os.Create(flags.eventsPath)
-		if err != nil {
+		if err := s.record(emitter, flags.eventsPath); err != nil {
 			return nil, err
 		}
-		s.closers = append(s.closers, func() { f.Close() })
-		sinks = append(sinks, f)
 	}
-	s.runID = newRunID()
-	s.emitter = events.NewEmitter(s.runID, sinks...)
 	s.printer = console.New(human)
-	s.emitter.Listen(s.printer.Handle)
+	emitter.Listen(s.printer.Handle)
+	s.Pipeline = &pipeline.Pipeline{
+		Repo: repo, Cfg: cfg, Runner: runner, Emit: emitter, RunID: runID,
+		ConfigPath: absConfigPath(), Warn: warn,
+	}
 	return s, nil
+}
+
+// record also writes the event stream to a file, as JSONL.
+func (s *session) record(emitter *events.Emitter, path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	s.closers = append(s.closers, func() { f.Close() })
+	emitter.Listen(func(ev events.Event) {
+		if line, err := json.Marshal(ev); err == nil {
+			_, _ = f.Write(append(line, '\n'))
+		}
+	})
+	return nil
 }
 
 // close runs after the command's own deferred cleanup, so the sandbox is
@@ -119,25 +124,18 @@ func (s *session) close() {
 	}
 }
 
-func (s *session) tester() tester.Tester {
-	return tester.Tester{Cfg: s.cfg}
+func (s *session) verifier() verify.Verifier {
+	return verify.Verifier{Repo: s.Repo, Cfg: s.Cfg, Runner: s.Runner}
 }
 
-// stage wraps fn in stage_started and stage_done events. An Escalation from
-// fn is reported on the stream before it is returned.
-func (s *session) stage(stage events.Stage, fn func() error) error {
-	start := time.Now()
-	_ = s.emitter.Emit(stage, events.StageStarted{})
-	err := fn()
-	status := "ok"
-	if esc, ok := err.(*Escalation); ok {
-		status = "escalated"
-		_ = s.emitter.Emit(stage, events.Escalated{Reason: esc.Reason, Diagnosis: esc.Diagnosis})
-	} else if err != nil {
-		status = "error"
+// resolve turns the --good and --bad flags into commit hashes.
+func (s *session) resolve(cmd *cobra.Command, good, bad string) (string, string, error) {
+	goodSHA, err := s.Repo.Resolve(cmd.Context(), good)
+	if err != nil {
+		return "", "", err
 	}
-	_ = s.emitter.Emit(stage, events.StageDone{Status: status, DurationMS: time.Since(start).Milliseconds()})
-	return err
+	badSHA, err := s.Repo.Resolve(cmd.Context(), bad)
+	return goodSHA, badSHA, err
 }
 
 // printJSON writes the result on stdout when --json was given.

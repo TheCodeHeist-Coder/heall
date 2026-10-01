@@ -2,13 +2,8 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"heall/internal/events"
-	"heall/internal/locate"
-	"heall/internal/workspace"
 )
 
 func newLocateCmd() *cobra.Command {
@@ -35,51 +30,31 @@ do not build are skipped and the search routes around them.`,
 			}
 			defer s.close()
 			if workers > 0 {
-				s.cfg.Locate.Workers = workers
+				s.Cfg.Locate.Workers = workers
 			}
-
-			goodSHA, err := s.repo.Resolve(ctx, good)
+			goodSHA, badSHA, err := s.resolve(cmd, good, bad)
 			if err != nil {
 				return err
 			}
-			badSHA, err := s.repo.Resolve(ctx, bad)
-			if err != nil {
-				return err
-			}
-			commits, err := s.repo.Range(ctx, goodSHA, badSHA)
+			commits, err := s.Repo.Range(ctx, goodSHA, badSHA)
 			if err != nil {
 				return err
 			}
 			if len(commits) < 2 {
 				return errors.New("--good and --bad are the same commit")
 			}
-			if err := s.runner.Prepare(ctx); err != nil {
+			if err := s.Runner.Prepare(ctx); err != nil {
 				return err
 			}
-
-			pool, err := workspace.New(s.repo, s.runner, s.tester(), test, s.cfg.Locate.Workers)
+			pool, closePool, err := s.Pool(test, s.Cfg.Locate.Workers)
 			if err != nil {
 				return err
 			}
-			defer func() {
-				if err := pool.Close(); err != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: worktree cleanup: %v\n", err)
-				}
-			}()
-
+			defer closePool()
 			// Start every worker's sandbox while the first commits are tested.
 			go pool.Warm(ctx, badSHA)
 
-			var res locate.Result
-			err = s.stage(events.StageLocate, func() error {
-				res, err = locate.Run(ctx, commits, pool.Check, locate.Options{
-					Workers:    s.cfg.Locate.Workers,
-					VerifyEnds: !skipEndCheck,
-					Emit:       s.emitter,
-					Diff:       s.repo.Diff,
-				})
-				return err
-			})
+			res, err := s.Locate(ctx, pool, commits, !skipEndCheck)
 			if err != nil {
 				return err
 			}
@@ -91,8 +66,8 @@ do not build are skipped and the search routes around them.`,
 				"rounds":      res.Rounds,
 				"tested":      res.Tested,
 				"duration_ms": res.Duration.Milliseconds(),
-				"sandbox":     s.runner.Name(),
-				"workers":     s.cfg.Locate.Workers,
+				"sandbox":     s.Runner.Name(),
+				"workers":     s.Cfg.Locate.Workers,
 			})
 		},
 	}

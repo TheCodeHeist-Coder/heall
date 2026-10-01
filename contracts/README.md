@@ -174,7 +174,25 @@ Every `heall` command uses the same exit codes:
 | 1 | An error: bad arguments, Docker not running, a git failure |
 | 3 | Escalated: heall stopped on purpose because it could not prove something, and said why in an `escalated` event |
 
-## 5. Repo config
+## 5. Run directory
+
+`heall run` writes its results to `.heall/<run id>/` in the working directory
+(or `--out`):
+
+| File | Written when | Contents |
+|---|---|---|
+| `events.jsonl` | Always | The run's whole event stream, for replay in the dashboard |
+| `fix.patch` | A fix was verified | The patch, as git's own diff of the verified tree |
+| `report.md` | A fix was verified | The pull request body: root cause, culprit, patch, evidence |
+| `evidence.json` | A fix was verified | What the run established, so `heall pr <dir>` can publish it later |
+| `diagnosis.md` | The run escalated | Why heall stopped, and what it had established by then |
+
+Without `--dry-run`, a fix is also committed on a `heall/fix-…` branch, pushed,
+and opened as a draft pull request with `gh`; a diagnosis is also posted as a
+comment on the failing commit. If GitHub cannot be reached the files are still
+written, a `log` event says why, and the run's outcome does not change.
+
+## 6. Repo config
 
 Each repository being healed has a `.heall.yaml` (`examples/heall.yaml`). It
 holds the build and test commands and the allow and protect lists, so the CLI

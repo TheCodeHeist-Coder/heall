@@ -1,17 +1,24 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/spf13/cobra"
-
-	"heall/internal/events"
-	"heall/internal/triage"
-	"heall/internal/workspace"
 )
+
+// readLog reads a test log from a file, or from standard input for "-".
+func readLog(cmd *cobra.Command, path string) (string, error) {
+	var raw []byte
+	var err error
+	if path == "-" {
+		raw, err = io.ReadAll(cmd.InOrStdin())
+	} else {
+		raw, err = os.ReadFile(path)
+	}
+	return string(raw), err
+}
 
 func newTriageCmd() *cobra.Command {
 	var (
@@ -35,57 +42,22 @@ sandbox and its output is used.`,
 				return err
 			}
 			defer s.close()
-
-			badSHA, err := s.repo.Resolve(ctx, bad)
+			badSHA, err := s.Repo.Resolve(ctx, bad)
 			if err != nil {
 				return err
 			}
-			snapshot, err := s.repo.Snapshot(ctx, badSHA)
-			if err != nil {
-				return err
-			}
-
-			var report triage.Report
-			err = s.stage(events.StageTriage, func() error {
-				var log string
-				switch {
-				case len(args) == 0:
-					if log, err = s.runSuite(cmd, badSHA); err != nil {
-						return err
-					}
-				case args[0] == "-":
-					raw, err := io.ReadAll(cmd.InOrStdin())
-					if err != nil {
-						return err
-					}
-					log = string(raw)
-				default:
-					raw, err := os.ReadFile(args[0])
-					if err != nil {
-						return err
-					}
-					log = string(raw)
-				}
-
-				report, err = triage.Analyze(log, snapshot)
-				if errors.Is(err, triage.ErrNoFailure) {
-					return &Escalation{
-						Stage:     events.StageTriage,
-						Reason:    "no failing test found",
-						Diagnosis: "The log does not contain a failing test in a format heall understands (Node test runner TAP or spec output).",
-					}
-				}
+			var log *string
+			if len(args) == 1 {
+				text, err := readLog(cmd, args[0])
 				if err != nil {
 					return err
 				}
-				p := report.Primary
-				return s.emitter.Emit(events.StageTriage, events.TriageDone{
-					TestName:     p.Test,
-					TestFile:     p.File,
-					SuspectFiles: nonNil(report.SuspectFiles),
-					Excerpt:      p.Excerpt,
-				})
-			})
+				log = &text
+			} else if err := s.Runner.Prepare(ctx); err != nil {
+				return err
+			}
+
+			report, err := s.Triage(ctx, badSHA, log)
 			if err != nil {
 				return err
 			}
@@ -101,49 +73,4 @@ sandbox and its output is used.`,
 	flags.register(cmd)
 	cmd.Flags().StringVar(&bad, "bad", "HEAD", "the failing commit; file paths in the log are resolved against it")
 	return cmd
-}
-
-// runSuite runs the whole test suite on sha in the sandbox and returns its
-// output, for when there is no CI log to read.
-func (s *session) runSuite(cmd *cobra.Command, sha string) (string, error) {
-	ctx := cmd.Context()
-	if err := s.runner.Prepare(ctx); err != nil {
-		return "", err
-	}
-	pool, err := workspace.New(s.repo, s.runner, s.tester(), "", 1)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		if err := pool.Close(); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: worktree cleanup: %v\n", err)
-		}
-	}()
-	out, err := pool.Outcome(ctx, 0, sha)
-	if err != nil {
-		return "", err
-	}
-	switch out.Verdict {
-	case events.Pass:
-		return "", &Escalation{
-			Stage:     events.StageTriage,
-			Reason:    "the test suite passes",
-			Diagnosis: fmt.Sprintf("Every test passes on %.10s in the sandbox, so there is no failure to work on.", sha),
-		}
-	case events.Skipped:
-		return "", &Escalation{
-			Stage:     events.StageTriage,
-			Reason:    "the failing commit cannot be tested",
-			Diagnosis: fmt.Sprintf("%.10s does not build in the sandbox, or the %s step timed out:\n%s", sha, out.Phase, out.Result.Output),
-		}
-	}
-	return out.Result.Output, nil
-}
-
-// nonNil keeps empty lists as [] rather than null in the event stream.
-func nonNil(s []string) []string {
-	if s == nil {
-		return []string{}
-	}
-	return s
 }

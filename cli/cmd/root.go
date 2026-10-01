@@ -11,6 +11,8 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+
+	"heall/internal/pipeline"
 )
 
 var (
@@ -27,7 +29,7 @@ var rootCmd = &cobra.Command{
 
 // ExitCode maps the error from Execute to the process exit code.
 func ExitCode(err error) int {
-	var esc *Escalation
+	var esc *pipeline.Escalation
 	switch {
 	case err == nil:
 		return 0
@@ -43,7 +45,7 @@ func Execute() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	err := rootCmd.ExecuteContext(ctx)
-	var esc *Escalation
+	var esc *pipeline.Escalation
 	switch {
 	case err == nil:
 	case errors.As(err, &esc):
@@ -61,26 +63,14 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "path to .heall.yaml (default: <repo>/.heall.yaml)")
 
 	rootCmd.AddCommand(
-		stub("run", "Run the full pipeline: triage, reproduce, locate, heal, deliver", 7, false),
+		newRunCmd(),
 		newTriageCmd(),
 		newReproduceCmd(),
 		newLocateCmd(),
 		newHealCmd(),
-		stub("pr", "Open a draft pull request with the patch and evidence", 7, false),
+		newPRCmd(),
 		// Called by the Python agent, not by people.
 		newRunTestCmd(),
 		newVerifyCmd(),
 	)
-}
-
-// stub registers a command whose implementation lands in a later build step.
-func stub(use, short string, step int, hidden bool) *cobra.Command {
-	return &cobra.Command{
-		Use:    use,
-		Short:  short,
-		Hidden: hidden,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("%s is not implemented yet (build step %d)", cmd.Name(), step)
-		},
-	}
 }

@@ -338,3 +338,60 @@ func WorktreeDiff(ctx context.Context, dir string) (string, error) {
 func (r *Repo) Message(ctx context.Context, sha string) (string, error) {
 	return r.git(ctx, "log", "-1", "--format=%B", sha)
 }
+
+// BranchOf returns the local branch that ref names: the current branch for
+// "HEAD", the branch itself for a branch name, and "" for anything else,
+// such as a hash or a detached HEAD.
+func (r *Repo) BranchOf(ctx context.Context, ref string) string {
+	if ref == "HEAD" {
+		name, err := r.git(ctx, "symbolic-ref", "--quiet", "--short", "HEAD")
+		if err != nil {
+			return ""
+		}
+		return name
+	}
+	if _, err := r.git(ctx, "show-ref", "--verify", "--quiet", "refs/heads/"+ref); err != nil {
+		return ""
+	}
+	return ref
+}
+
+// CommitPatch applies patch on top of sha and commits it on a new local
+// branch, without touching any checkout. It returns the new commit.
+func (r *Repo) CommitPatch(ctx context.Context, sha, branch, patch, message, authorName, authorEmail string) (string, error) {
+	dir, remove, err := r.TempWorktree(ctx, sha)
+	if err != nil {
+		return "", err
+	}
+	defer remove()
+	if err := ApplyPatch(ctx, dir, patch); err != nil {
+		return "", err
+	}
+	if _, err := run(ctx, dir, "add", "--all"); err != nil {
+		return "", err
+	}
+	if _, err := run(ctx, dir, "-c", "user.name="+authorName, "-c", "user.email="+authorEmail,
+		"-c", "commit.gpgsign=false", "commit", "--quiet", "--no-verify", "-m", message); err != nil {
+		return "", err
+	}
+	commit, err := run(ctx, dir, "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	if _, err := r.git(ctx, "branch", "--force", branch, commit); err != nil {
+		return "", err
+	}
+	return commit, nil
+}
+
+// Push sends a local branch to a remote.
+func (r *Repo) Push(ctx context.Context, remote, branch string) error {
+	_, err := r.git(ctx, "push", "--quiet", remote, "refs/heads/"+branch+":refs/heads/"+branch)
+	return err
+}
+
+// HasRemote reports whether the repository has a remote of that name.
+func (r *Repo) HasRemote(ctx context.Context, remote string) bool {
+	_, err := r.git(ctx, "remote", "get-url", remote)
+	return err == nil
+}

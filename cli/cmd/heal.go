@@ -1,15 +1,11 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
-	"heall/internal/agentio"
-	"heall/internal/events"
 	"heall/internal/heal"
-	"heall/internal/triage"
 )
 
 func newHealCmd() *cobra.Command {
@@ -40,43 +36,26 @@ in GROQ_API_KEYS). A .env file in the working directory is read.`,
 			}
 			defer s.close()
 			if model != "" {
-				s.cfg.Heal.Model = model
+				s.Cfg.Heal.Model = model
 			}
-
-			goodSHA, err := s.repo.Resolve(ctx, good)
+			goodSHA, badSHA, err := s.resolve(cmd, good, bad)
 			if err != nil {
 				return err
 			}
-			badSHA, err := s.repo.Resolve(ctx, bad)
+			culpritSHA, err := s.Repo.Resolve(ctx, culprit)
 			if err != nil {
 				return err
 			}
-			culpritSHA, err := s.repo.Resolve(ctx, culprit)
-			if err != nil {
-				return err
-			}
-			if err := s.runner.Prepare(ctx); err != nil {
+			if err := s.Runner.Prepare(ctx); err != nil {
 				return err
 			}
 
-			var res heal.Result
-			err = s.stage(events.StageHeal, func() error {
-				in, err := s.healInput(cmd, goodSHA, badSHA, culpritSHA, test)
-				if err != nil {
-					return err
-				}
-				in.InjectBadPatch = inject
-				res, err = heal.Healer{
-					Repo: s.repo, Cfg: s.cfg, Runner: s.runner, Emit: s.emitter, ConfigPath: absConfigPath(),
-				}.Run(ctx, in)
-				if err != nil {
-					return err
-				}
-				if res.Outcome != heal.Fixed {
-					return &Escalation{Stage: events.StageHeal, Reason: res.Reason, Diagnosis: res.RootCause}
-				}
-				return nil
-			})
+			in, err := s.HealInput(ctx, goodSHA, badSHA, culpritSHA, test, "")
+			if err != nil {
+				return err
+			}
+			in.InjectBadPatch = inject
+			res, err := s.Heal(ctx, in)
 			if res.Outcome == heal.Fixed && patchOut != "" {
 				if werr := os.WriteFile(patchOut, []byte(res.Patch), 0o644); werr != nil && err == nil {
 					err = werr
@@ -107,48 +86,4 @@ in GROQ_API_KEYS). A .env file in the working directory is read.`,
 		_ = cmd.MarkFlagRequired(name)
 	}
 	return cmd
-}
-
-// healInput gathers what the agent is told: the failure as it looks in the
-// sandbox, and the culprit commit with its message and diff.
-func (s *session) healInput(cmd *cobra.Command, good, bad, culprit, test string) (heal.Input, error) {
-	ctx := cmd.Context()
-	in := heal.Input{RunID: s.runID, Good: good, Bad: bad}
-
-	run, err := s.verifier().RunTest(ctx, bad, test)
-	if err != nil {
-		return in, err
-	}
-	if run.Verdict != events.Fail {
-		return in, &Escalation{
-			Stage:     events.StageHeal,
-			Reason:    "the test does not fail on the bad commit",
-			Diagnosis: fmt.Sprintf("%q gave %q on %.10s in the sandbox, so there is nothing to fix. Run `heall reproduce` first.", test, run.Verdict, bad),
-		}
-	}
-	in.Failure = agentio.Failure{TestName: test, Output: run.Output}
-	snapshot, err := s.repo.Snapshot(ctx, bad)
-	if err != nil {
-		return in, err
-	}
-	if report, err := triage.Analyze(run.Output, snapshot); err == nil {
-		in.Failure.TestFile = report.Primary.File
-		in.Failure.Output = report.Primary.Excerpt
-		in.SuspectFiles = report.SuspectFiles
-	}
-
-	commit, err := s.repo.Commit(ctx, culprit)
-	if err != nil {
-		return in, err
-	}
-	message, err := s.repo.Message(ctx, culprit)
-	if err != nil {
-		return in, err
-	}
-	diff, err := s.repo.Diff(ctx, culprit)
-	if err != nil {
-		return in, err
-	}
-	in.Culprit = agentio.Culprit{Commit: commit, Message: message, Diff: diff}
-	return in, nil
 }

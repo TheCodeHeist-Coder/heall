@@ -33,15 +33,11 @@ func openCallback(cmd *cobra.Command, requestPath string) (*session, agentio.Hea
 	if err != nil {
 		return nil, req, err
 	}
-	if err := s.runner.Prepare(cmd.Context()); err != nil {
+	if err := s.Runner.Prepare(cmd.Context()); err != nil {
 		s.close()
 		return nil, req, err
 	}
 	return s, req, nil
-}
-
-func (s *session) verifier() verify.Verifier {
-	return verify.Verifier{Repo: s.repo, Cfg: s.cfg, Runner: s.runner}
 }
 
 func newRunTestCmd() *cobra.Command {

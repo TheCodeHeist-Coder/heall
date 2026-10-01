@@ -1,15 +1,7 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
-
-	"heall/internal/events"
-	"heall/internal/gitx"
-	"heall/internal/reproduce"
-	"heall/internal/triage"
-	"heall/internal/workspace"
 )
 
 func newReproduceCmd() *cobra.Command {
@@ -35,55 +27,29 @@ then stops with exit code 3 and explains why, instead of blaming a commit.`,
 			}
 			defer s.close()
 			if runs > 0 {
-				s.cfg.Reproduce.Runs = runs
+				s.Cfg.Reproduce.Runs = runs
 			}
 			if workers > 0 {
-				s.cfg.Locate.Workers = workers
+				s.Cfg.Locate.Workers = workers
 			}
-
-			goodSHA, err := s.repo.Resolve(ctx, good)
+			goodSHA, badSHA, err := s.resolve(cmd, good, bad)
 			if err != nil {
 				return err
 			}
-			badSHA, err := s.repo.Resolve(ctx, bad)
-			if err != nil {
-				return err
-			}
-			if err := s.runner.Prepare(ctx); err != nil {
+			if err := s.Runner.Prepare(ctx); err != nil {
 				return err
 			}
 			s.printer.SetEnds(goodSHA, badSHA)
 
-			n := min(s.cfg.Locate.Workers, s.cfg.Reproduce.Runs+1)
-			pool, err := workspace.New(s.repo, s.runner, s.tester(), test, n)
+			n := min(s.Cfg.Locate.Workers, s.Cfg.Reproduce.Runs+1)
+			pool, closePool, err := s.Pool(test, n)
 			if err != nil {
 				return err
 			}
-			defer func() {
-				if err := pool.Close(); err != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: worktree cleanup: %v\n", err)
-				}
-			}()
-
+			defer closePool()
 			go pool.Warm(ctx, badSHA)
 
-			var res reproduce.Result
-			err = s.stage(events.StageReproduce, func() error {
-				res, err = reproduce.Run(ctx, goodSHA, badSHA, pool.Outcome, reproduce.Options{
-					Runs:    s.cfg.Reproduce.Runs,
-					Workers: n,
-					Emit:    s.emitter,
-				})
-				if err != nil || res.Proceed() {
-					return err
-				}
-				var hints []string
-				if res.Outcome == reproduce.Flaky {
-					hints = flakyHints(cmd, s.repo, badSHA, test, testFile)
-				}
-				reason, diagnosis := res.Explain(test, goodSHA, badSHA, hints)
-				return &Escalation{Stage: events.StageReproduce, Reason: reason, Diagnosis: diagnosis}
-			})
+			res, err := s.Reproduce(ctx, pool, n, goodSHA, badSHA, test, testFile)
 			if jsonErr := s.printJSON(map[string]any{
 				"outcome":     res.Outcome,
 				"runs":        res.Runs,
@@ -107,28 +73,4 @@ then stops with exit code 3 and explains why, instead of blaming a commit.`,
 	_ = cmd.MarkFlagRequired("good")
 	_ = cmd.MarkFlagRequired("test")
 	return cmd
-}
-
-// flakyHints looks through the test and the files it imports for code whose
-// result changes from run to run. Hints are a courtesy: any problem finding
-// them just means there are none.
-func flakyHints(cmd *cobra.Command, repo *gitx.Repo, sha, test, testFile string) []string {
-	snapshot, err := repo.Snapshot(cmd.Context(), sha)
-	if err != nil {
-		return nil
-	}
-	if testFile == "" {
-		files, err := snapshot.Find(test)
-		if err != nil || len(files) == 0 {
-			return nil
-		}
-		testFile = files[0]
-	}
-	sources := map[string]string{}
-	for _, file := range append([]string{testFile}, triage.Suspects(triage.Failure{File: testFile}, snapshot)...) {
-		if content, err := snapshot.Read(file); err == nil {
-			sources[file] = content
-		}
-	}
-	return reproduce.Hints(sources)
 }

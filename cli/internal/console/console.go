@@ -121,6 +121,36 @@ func (p *Printer) Handle(ev events.Event) {
 		return
 	}
 	switch d := payload.(type) {
+	case *events.RunStarted:
+		p.SetEnds(d.Good, d.Bad)
+		where := fmt.Sprintf("%.10s", d.Bad)
+		if d.Branch != "" {
+			where = d.Branch + " (" + where + ")"
+		}
+		mode := ""
+		if d.DryRun {
+			mode = ", dry run"
+		}
+		fmt.Fprintf(p.w, "%s %s: last good %.10s, failing %s%s\n", p.paint(bold, "heall"), ev.RunID, d.Good, where, mode)
+	case *events.DeliverDone:
+		switch d.Outcome {
+		case "pr":
+			fmt.Fprintf(p.w, "%s draft pull request opened: %s\n", p.paint(bold, "deliver"), d.URL)
+		case "patch_file":
+			fmt.Fprintf(p.w, "%s the fix was saved to %s, with report.md beside it\n", p.paint(bold, "deliver"), d.Path)
+		default:
+			fmt.Fprintf(p.w, "%s the diagnosis was saved to %s\n", p.paint(bold, "deliver"), d.Path)
+			if d.URL != "" {
+				fmt.Fprintf(p.w, "  and posted on the failing commit: %s\n", d.URL)
+			}
+		}
+	case *events.RunDone:
+		label := map[string]string{
+			"fixed":     p.paint(bold+";"+green, "fixed"),
+			"escalated": p.paint(bold+";"+yellow, "escalated"),
+			"error":     p.paint(bold+";"+red, "failed"),
+		}[d.Outcome]
+		fmt.Fprintf(p.w, "%s in %s\n", label, seconds(d.DurationMS))
 	case *events.TriageDone:
 		fmt.Fprintf(p.w, "%s %s\n", p.paint(bold, "triage"), d.TestName)
 		fmt.Fprintf(p.w, "  in %s\n", d.TestFile)
