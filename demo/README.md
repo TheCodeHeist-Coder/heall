@@ -26,7 +26,7 @@ every scenario. Each scenario branch adds 120 commits on top of it.
 
 | Branch | What went wrong | What heall should do |
 |---|---|---|
-| `bug/off-by-one` | Commit 53 refactors `paginate()` to use a new `bounds()` helper and drops the last item of every page. Commits 23 and 79 have syntax errors (each fixed by the next commit). | Bisect to commit 53, skipping the broken commits, then fix and open a PR. |
+| `bug/off-by-one` | Commit 53 refactors `paginate()` to use a new `bounds()` helper and drops the last item of every page. Commits 17 and 68 have syntax errors (each fixed by the next commit); a 6-worker bisect lands on both in its first round. | Bisect to commit 53, skipping the broken commits, then fix and open a PR. |
 | `change/price-format` | Commit 62 changes `formatPrice()` from `$12.50` to `12.50 USD` on purpose and updates its tests, but a test in `test/cart.test.js` still asserts the old format. | Bisect to commit 62, then escalate: two tests now demand different results from the same call, so only editing a test can fix it. |
 | `flaky/retry-jitter` | Commit 67 adds a test that depends on `Math.random()` and fails about half the time. | Stop at Reproduce and escalate as flaky, without bisecting. |
 

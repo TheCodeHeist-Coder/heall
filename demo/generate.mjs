@@ -57,15 +57,40 @@ function fail(message) {
 // ---------------------------------------------------------------------------
 // Files that exist on main
 
-const BUILD_CMD =
-  "for f in $(find src -name '*.js'); do node --check \"$f\" || exit 1; done";
+// The demo repository's build step. Loading every module in one process
+// catches syntax errors and broken imports, and starts one Node process
+// instead of one per file.
+const CHECK_SCRIPT = `// Loads every module under src/ so that a syntax error or a broken import
+// fails fast, before the tests run.
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const files = readdirSync("src", { recursive: true })
+  .filter((f) => f.endsWith(".js"))
+  .sort();
+
+for (const f of files) {
+  try {
+    await import(pathToFileURL(path.resolve("src", f)));
+  } catch (err) {
+    console.error(\`\${f}: \${err.message}\`);
+    process.exit(1);
+  }
+}
+console.log(\`\${files.length} modules ok\`);
+`;
+
+// --test-isolation=none runs every test file in one process. The suite has
+// no shared state, and it makes a test run about three times faster.
+const TEST_ARGS = ["--test", "--test-isolation=none", "--test-reporter=tap"];
 
 const HEALL_YAML = `version: 1
 
 # Exits non-zero when a commit has a syntax error, so bisect can skip it.
-build_cmd: ["sh", "-c", "for f in $(find src -name '*.js'); do node --check \\"$f\\" || exit 1; done"]
-test_cmd: ["node", "--test", "--test-reporter=tap"]
-test_one_cmd: ["node", "--test", "--test-reporter=tap", "--test-name-pattern={{test}}"]
+build_cmd: ["node", "scripts/check.mjs"]
+test_cmd: ["node", "--test", "--test-isolation=none", "--test-reporter=tap"]
+test_one_cmd: ["node", "--test", "--test-isolation=none", "--test-reporter=tap", "--test-name-pattern=^{{test_re}}$"]
 
 # A patch may only touch allowed paths, and never protected ones.
 allow:
@@ -73,6 +98,7 @@ allow:
 protect:
   - "test/**"
   - "**/*.test.js"
+  - "scripts/**"
   - "package.json"
   - ".heall.yaml"
 
@@ -113,6 +139,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - run: node scripts/check.mjs
       - run: node --test
 `;
 
@@ -374,7 +401,7 @@ const SCENARIOS = [
       "A refactor makes paginate() drop the last item of a page. Two commits in the range have syntax errors. The obvious fix (changing bounds()) breaks other tests; the right fix is one line in paginate().",
     scripted: [
       {
-        at: 22,
+        at: 16,
         tag: "unbuildable",
         author: "tomas",
         message: ["refactor(cart): total the cart with reduce"],
@@ -385,7 +412,7 @@ const SCENARIOS = [
           )),
       },
       {
-        at: 23,
+        at: 17,
         author: "tomas",
         message: ["fix(cart): close the reduce call"],
         apply: () =>
@@ -413,14 +440,14 @@ const SCENARIOS = [
         },
       },
       {
-        at: 78,
+        at: 67,
         tag: "unbuildable",
         author: "lena",
         message: ["refactor(retry): name the growth factor"],
         apply: () => write("src/retry.js", RETRY_FACTOR.replace(/\}\n$/, "")),
       },
       {
-        at: 79,
+        at: 68,
         author: "lena",
         message: ["fix(retry): restore the closing brace"],
         apply: () => write("src/retry.js", RETRY_FACTOR),
@@ -701,11 +728,11 @@ function commit(message, authorKey) {
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function builds() {
-  return spawnSync("sh", ["-c", BUILD_CMD], { cwd: REPO, env: ENV, encoding: "utf8" }).status === 0;
+  return spawnSync("node", ["scripts/check.mjs"], { cwd: REPO, env: ENV, encoding: "utf8" }).status === 0;
 }
 
 function runTests(...extra) {
-  const r = spawnSync("node", ["--test", "--test-reporter=tap", ...extra], {
+  const r = spawnSync("node", [...TEST_ARGS, ...extra], {
     cwd: REPO,
     env: ENV,
     encoding: "utf8",
@@ -842,6 +869,7 @@ function buildMain() {
   write("CHANGELOG.md", changelog(state));
   commit("docs: add API list and changelog", "ravi");
 
+  write("scripts/check.mjs", CHECK_SCRIPT);
   write(".github/workflows/ci.yml", CI_YAML);
   write(".heall.yaml", HEALL_YAML);
   const sha = commit("ci: run the tests on every push", "ravi");

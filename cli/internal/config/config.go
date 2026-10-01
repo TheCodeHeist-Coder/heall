@@ -7,14 +7,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 const FileName = ".heall.yaml"
 
-// TestPlaceholder is replaced with the test name in TestOneCmd.
-const TestPlaceholder = "{{test}}"
+// Placeholders in TestOneCmd. TestPlaceholder becomes the test name as is;
+// TestRePlaceholder becomes the name escaped for use inside a regular
+// expression, for runners that select tests by pattern.
+const (
+	TestPlaceholder   = "{{test}}"
+	TestRePlaceholder = "{{test_re}}"
+)
 
 type Sandbox struct {
 	// Mode is "docker" or "local".
@@ -43,7 +51,7 @@ type Config struct {
 	BuildCmd []string `yaml:"build_cmd"`
 	// TestCmd runs the full suite.
 	TestCmd []string `yaml:"test_cmd"`
-	// TestOneCmd runs a single test; TestPlaceholder is replaced by its name.
+	// TestOneCmd runs a single test; see TestPlaceholder and TestRePlaceholder.
 	TestOneCmd []string `yaml:"test_one_cmd"`
 	// Allow lists the globs a patch may touch.
 	Allow []string `yaml:"allow"`
@@ -87,6 +95,16 @@ func Load(repoDir, path string) (Config, error) {
 	return cfg, nil
 }
 
+// TestOne returns the command that runs the single test called name.
+func (c Config) TestOne(name string) []string {
+	r := strings.NewReplacer(TestRePlaceholder, regexp.QuoteMeta(name), TestPlaceholder, name)
+	out := make([]string, len(c.TestOneCmd))
+	for i, arg := range c.TestOneCmd {
+		out[i] = r.Replace(arg)
+	}
+	return out
+}
+
 func (c Config) Validate() error {
 	var errs []error
 	if c.Version != 1 {
@@ -97,6 +115,10 @@ func (c Config) Validate() error {
 	}
 	if len(c.TestOneCmd) == 0 {
 		errs = append(errs, errors.New("test_one_cmd is required"))
+	} else if !slices.ContainsFunc(c.TestOneCmd, func(arg string) bool {
+		return strings.Contains(arg, TestPlaceholder) || strings.Contains(arg, TestRePlaceholder)
+	}) {
+		errs = append(errs, fmt.Errorf("test_one_cmd must contain %s or %s", TestPlaceholder, TestRePlaceholder))
 	}
 	if len(c.Allow) == 0 {
 		errs = append(errs, errors.New("allow must list at least one path"))

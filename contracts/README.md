@@ -128,6 +128,7 @@ has no knowledge of the repository's language.
 
 - `build_cmd` must exit non-zero when a commit cannot be built. Bisect marks
   such commits `skipped` and routes around them.
-- `test_one_cmd` runs a single test; `{{test}}` is replaced by the test name.
+- `test_one_cmd` runs a single test. `{{test}}` is replaced by the test name,
+  `{{test_re}}` by the name escaped for use in a regular expression.
 - A patch may touch only paths matching `allow`, and never a path matching
   `protect`, even if it is also allowed.

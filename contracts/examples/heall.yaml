@@ -1,9 +1,9 @@
 version: 1
 
 # Exits non-zero when a commit has a syntax error, so bisect can skip it.
-build_cmd: ["sh", "-c", "for f in $(find src -name '*.js'); do node --check \"$f\" || exit 1; done"]
-test_cmd: ["node", "--test", "--test-reporter=tap"]
-test_one_cmd: ["node", "--test", "--test-reporter=tap", "--test-name-pattern={{test}}"]
+build_cmd: ["node", "scripts/check.mjs"]
+test_cmd: ["node", "--test", "--test-isolation=none", "--test-reporter=tap"]
+test_one_cmd: ["node", "--test", "--test-isolation=none", "--test-reporter=tap", "--test-name-pattern=^{{test_re}}$"]
 
 # A patch may only touch allowed paths, and never protected ones.
 allow:
@@ -11,6 +11,7 @@ allow:
 protect:
   - "test/**"
   - "**/*.test.js"
+  - "scripts/**"
   - "package.json"
   - ".heall.yaml"
 

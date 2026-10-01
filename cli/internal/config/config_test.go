@@ -12,11 +12,12 @@ func TestLoadExample(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Sandbox.Image != "node:24-alpine" || cfg.Locate.Workers != 6 || len(cfg.Protect) != 4 {
+	if cfg.Sandbox.Image != "node:24-alpine" || cfg.Locate.Workers != 6 || len(cfg.Protect) != 5 {
 		t.Errorf("unexpected config: %+v", cfg)
 	}
-	if !strings.Contains(strings.Join(cfg.TestOneCmd, " "), TestPlaceholder) {
-		t.Errorf("test_one_cmd has no %s placeholder: %v", TestPlaceholder, cfg.TestOneCmd)
+	got := cfg.TestOne("sum adds (a+b)")
+	if want := `--test-name-pattern=^sum adds \(a\+b\)$`; got[len(got)-1] != want {
+		t.Errorf("TestOne = %q, want last arg %q", got, want)
 	}
 }
 
@@ -28,13 +29,18 @@ func TestLoadAppliesDefaultsAndValidates(t *testing.T) {
 		}
 	}
 
-	write("version: 1\ntest_cmd: [node, --test]\ntest_one_cmd: [node, --test]\nallow: [\"src/**\"]\n")
+	write("version: 1\ntest_cmd: [node, --test]\ntest_one_cmd: [node, --test, \"{{test}}\"]\nallow: [\"src/**\"]\n")
 	cfg, err := Load(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Heal.MaxAttempts != 3 || cfg.Sandbox.Mode != "docker" || cfg.Reproduce.Runs != 5 {
 		t.Errorf("defaults not applied: %+v", cfg)
+	}
+
+	write("version: 1\ntest_cmd: [node, --test]\ntest_one_cmd: [node, --test]\nallow: [\"src/**\"]\n")
+	if _, err := Load(dir, ""); err == nil || !strings.Contains(err.Error(), "must contain {{test}}") {
+		t.Errorf("test_one_cmd without a placeholder: got %v", err)
 	}
 
 	write("version: 1\nallow: [\"src/**\"]\nsandbox: {mode: vm}\n")

@@ -3,7 +3,12 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -17,11 +22,23 @@ var rootCmd = &cobra.Command{
 	Use:           "heall",
 	Short:         "Self-healing CI agent: find the culprit, prove the fix, or escalate",
 	SilenceUsage:  true,
-	SilenceErrors: false,
+	SilenceErrors: true,
 }
 
+// Execute runs the CLI. Ctrl-C cancels the command's context, so stages stop
+// and clean up their worktrees and containers instead of being killed.
 func Execute() error {
-	return rootCmd.Execute()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	err := rootCmd.ExecuteContext(ctx)
+	switch {
+	case err == nil:
+	case errors.Is(err, context.Canceled):
+		fmt.Fprintln(os.Stderr, "heall: interrupted; worktrees and containers were cleaned up")
+	default:
+		fmt.Fprintln(os.Stderr, "heall:", err)
+	}
+	return err
 }
 
 func init() {
@@ -32,7 +49,7 @@ func init() {
 		stub("run", "Run the full pipeline: triage, reproduce, locate, heal, deliver", 7, false),
 		stub("triage", "Parse a test log into structured failure info", 4, false),
 		stub("reproduce", "Confirm the failure reproduces in the sandbox and is not flaky", 4, false),
-		stub("locate", "Find the culprit commit with a parallel bisect", 3, false),
+		newLocateCmd(),
 		stub("heal", "Ask the agent for a fix and verify it against the guardrails", 6, false),
 		stub("pr", "Open a draft pull request with the patch and evidence", 7, false),
 		// Called by the Python agent, not by people.
