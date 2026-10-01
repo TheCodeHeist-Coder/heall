@@ -51,7 +51,7 @@ const STEPS: { title: string; text: React.ReactNode; command: string }[] = [
 
 // A command with a button that copies it. The button says so for a moment,
 // in words as well as by its icon.
-function Command({ text }: { text: string }) {
+export function Command({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
@@ -105,51 +105,50 @@ function Command({ text }: { text: string }) {
   );
 }
 
-// GetStarted tells a newcomer what heall is and how to use it on their own
-// repository. It is what the public site opens with.
-export function GetStarted({ onClose }: { onClose?: () => void }) {
+// GetStarted is the page a newcomer lands on: what heall is, and the steps
+// to use it on their own repository, each with its command ready to copy.
+export function GetStarted({ onDashboard }: { onDashboard: () => void }) {
   return (
-    <section className="rounded-lg border border-line bg-surface" aria-labelledby="get-started">
-      <div className="flex items-start gap-4 border-b border-line px-5 py-4">
-        <div className="min-w-0 flex-1">
-          <h2 id="get-started" className="text-xl font-semibold tracking-tight">
-            Fix a red build, with proof
-          </h2>
-          <p className="mt-1 max-w-3xl text-sm text-ink-2">
-            heall finds the commit that broke your tests, asks a model for a fix, and proves the fix in a sandbox before
-            opening a draft pull request. When it cannot prove a fix, it stops and tells you why. It runs on your
-            machine; your code is not uploaded anywhere.
-          </p>
-        </div>
-        {onClose && (
-          <button type="button" onClick={onClose} className="shrink-0 rounded-md border border-line px-2.5 py-1.5 text-sm hover:bg-raised">
-            Hide
-          </button>
-        )}
+    <main className="pb-10">
+      <div className="py-6 text-center">
+        <h2 className="text-3xl font-semibold tracking-tight">Fix a red build, with proof</h2>
+        <p className="mx-auto mt-3 max-w-2xl text-base text-ink-2">
+          heall finds the commit that broke your tests, asks a model for a fix, and proves the fix in a sandbox before
+          opening a draft pull request. When it cannot prove a fix, it stops and tells you why.
+        </p>
+        <p className="mt-2 text-sm text-muted">It runs on your machine. Your code is not uploaded anywhere.</p>
       </div>
 
-      <ol className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-5 p-5 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
-        {STEPS.map((step, i) => (
-          <li key={step.title} className={`flex min-w-0 gap-3 ${i === STEPS.length - 1 ? "lg:col-span-2" : ""}`}>
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink text-xs font-bold text-page">{i + 1}</span>
-            <div className="min-w-0 flex-1 space-y-2">
-              <h3 className="text-sm leading-6 font-semibold">{step.title}</h3>
-              <p className="text-sm text-ink-2">{step.text}</p>
-              <Command text={step.command} />
-            </div>
-          </li>
-        ))}
-      </ol>
-
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line px-5 py-3 text-xs text-ink-2">
-        <span>
+      <section className="rounded-lg border border-line bg-surface" aria-labelledby="steps">
+        <h3 id="steps" className="border-b border-line px-5 py-3 text-sm font-semibold">
+          Get started in five steps
+        </h3>
+        <ol className="space-y-6 p-5">
+          {STEPS.map((step, i) => (
+            <li key={step.title} className="flex min-w-0 gap-3">
+              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink text-xs font-bold text-page">{i + 1}</span>
+              <div className="min-w-0 flex-1 space-y-2">
+                <h4 className="text-sm leading-6 font-semibold">{step.title}</h4>
+                <p className="text-sm text-ink-2">{step.text}</p>
+                <Command text={step.command} />
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="border-t border-line px-5 py-3 text-xs text-ink-2">
           <span className="font-semibold text-ink">Works today with:</span> JavaScript projects tested with Node&apos;s
           built-in runner (<span className="font-mono">node --test</span>) that have no npm dependencies.
-        </span>
-        <a href="https://github.com/TheCodeHeist-Coder/heall" target="_blank" rel="noreferrer" className="text-accent underline-offset-2 hover:underline">
+        </div>
+      </section>
+
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
+        <button type="button" onClick={onDashboard} className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-page hover:opacity-90">
+          Open the dashboard
+        </button>
+        <a href="https://github.com/TheCodeHeist-Coder/heall" target="_blank" rel="noreferrer" className="text-sm text-accent underline-offset-2 hover:underline">
           Source and documentation on GitHub
         </a>
       </div>
-    </section>
+    </main>
   );
 }

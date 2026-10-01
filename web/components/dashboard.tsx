@@ -19,7 +19,7 @@ import {
 
 import { AgentTimeline } from "./agent-timeline";
 import { CommitGrid, Narrowing, TestedTable } from "./commit-grid";
-import { GetStarted } from "./get-started";
+import { Command, GetStarted } from "./get-started";
 import { Mark, Panel, seconds, short, VERDICT } from "./status";
 
 const STAGE_LABEL: Record<Stage, string> = {
@@ -42,8 +42,9 @@ const STAGE_HINT: Record<Stage, string> = {
 
 export function Dashboard() {
   const { runs, online } = useRuns();
-  // Until the reader picks something, show the newest run on this machine,
-  // or a recorded sample when there is none.
+  // Until the reader picks something, show the newest run on this machine.
+  // With no runs there is nothing to show: example runs are only opened on
+  // request, so the dashboard never looks as if it held someone's real data.
   const [picked, setPicked] = useState<Source | null>(null);
   const query = useQuery();
   const linked: Source | null = query.get("run")
@@ -53,12 +54,18 @@ export function Dashboard() {
       : null;
   const [unlinked, setUnlinked] = useState(false);
   const chosen = picked ?? (unlinked ? null : linked);
-  const source: Source | null =
-    chosen ?? (online === null ? null : runs.length > 0 ? { kind: "server", id: runs[0].id } : { kind: "sample", name: SAMPLES[0].name });
+  const source: Source | null = chosen ?? (runs.length > 0 ? { kind: "server", id: runs[0].id } : null);
   const pick = (s: Source | null) => {
     setUnlinked(true);
     setPicked(s);
   };
+
+  // Two pages in one: the guide, and the dashboard. A newcomer gets the
+  // guide. Someone with runs on this machine, or following a link to a run,
+  // gets the dashboard.
+  const [view, setView] = useState<"guide" | "dashboard" | null>(null);
+  const asked = query.get("view");
+  const page = view ?? (asked === "dashboard" || asked === "guide" ? asked : linked || runs.length > 0 ? "dashboard" : "guide");
 
   const [theme, setTheme] = useState<"dark" | "light" | null>(null);
   const forced = theme ?? (query.get("theme") === "dark" || query.get("theme") === "light" ? (query.get("theme") as "dark" | "light") : null);
@@ -67,46 +74,59 @@ export function Dashboard() {
     else delete document.documentElement.dataset.theme;
   }, [forced]);
 
-  // The guide opens by itself where there are no runs of your own to show:
-  // on the public site. Next to a local heall it stays behind its button.
-  const [guide, setGuide] = useState<boolean | null>(null);
-  const showGuide = guide ?? online === false;
-
   const { events, live, error } = useEvents(source);
   const at = Number.parseInt(query.get("at") ?? "", 10);
   const playback = usePlayback(events, sourceKey(source), Number.isFinite(at) && !unlinked ? at : null);
   const state = useRunState(events, playback.shown);
 
+  const switchTheme = () => {
+    const dark = forced ? forced === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setTheme(dark ? "light" : "dark");
+  };
+
+  if (page === "guide") {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-4">
+        <header className="flex items-center gap-3">
+          <h1 className="font-mono text-xl font-bold tracking-tight">heall</h1>
+          <span className="flex-1" />
+          <button type="button" onClick={switchTheme} className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm hover:bg-raised">
+            Switch theme
+          </button>
+          <button type="button" onClick={() => setView("dashboard")} className="rounded-md bg-ink px-3.5 py-1.5 text-sm font-medium text-page hover:opacity-90">
+            Dashboard
+          </button>
+        </header>
+        {/* Nothing is drawn until it is known whether this machine has runs,
+            so the guide does not flash by on the way to the dashboard. */}
+        {(online !== null || linked) && <GetStarted onDashboard={() => setView("dashboard")} />}
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-[1500px] flex-col gap-4 p-4">
       <Header
         runs={runs}
-        online={online}
         source={source}
         following={chosen === null}
         onPick={pick}
-        theme={forced}
-        onTheme={setTheme}
-        guide={showGuide}
-        onGuide={() => setGuide(!showGuide)}
+        onTheme={switchTheme}
+        onGuide={() => setView("guide")}
+        // Back undoes the last step: out of an example or an opened file to
+        // the dashboard as it was, and from there to the home page.
+        onBack={() => (chosen ? pick(null) : setView("guide"))}
         live={live}
         state={state}
         playback={playback}
         total={events.length}
       />
       {error && <p className="rounded-md bg-bad-wash px-3 py-2 text-sm">{error}</p>}
-      {showGuide && <GetStarted onClose={() => setGuide(false)} />}
-      {showGuide && online === false && (
-        <div className="mt-2">
-          <h2 className="text-xl font-semibold tracking-tight">See it work</h2>
-          <p className="mt-1 text-sm text-ink-2">
-            This is a recording of a real run. Press Replay to watch it happen, or pick another sample from the list.
-          </p>
-        </div>
-      )}
-      <StageRail state={state} />
+      {source && <StageRail state={state} />}
 
-      {events.length === 0 ? (
+      {!source ? (
+        <NoRuns online={online} onGuide={() => setView("guide")} onExample={() => pick({ kind: "sample", name: SAMPLES[0].name })} />
+      ) : events.length === 0 ? (
         <p className="py-20 text-center text-sm text-muted">{live ? "Waiting for the run to start…" : "Loading…"}</p>
       ) : (
         <div className="grid flex-1 grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -136,27 +156,59 @@ export function Dashboard() {
   );
 }
 
+// NoRuns is the dashboard with nothing in it yet. It says where runs come
+// from instead of showing someone else's.
+function NoRuns({ online, onGuide, onExample }: { online: boolean | null; onGuide: () => void; onExample: () => void }) {
+  return (
+    <section className="mx-auto mt-10 w-full max-w-xl rounded-lg border border-line bg-surface p-6 text-center">
+      <h2 className="text-lg font-semibold">No runs yet</h2>
+      {online ? (
+        <>
+          <p className="mt-2 text-sm text-ink-2">
+            Start a run in this project and it will appear here by itself, as it happens.
+          </p>
+          <div className="mt-4 text-left">
+            <Command text="heall run --good LAST_GREEN_COMMIT --dry-run" />
+          </div>
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-ink-2">
+          This website does not store anyone&apos;s runs. Your runs appear on the dashboard heall opens on your own
+          machine: run <span className="font-mono">heall serve</span> in your project and open{" "}
+          <span className="font-mono">http://localhost:7777</span>.
+        </p>
+      )}
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        <button type="button" onClick={onGuide} className="rounded-md bg-ink px-3.5 py-1.5 text-sm font-medium text-page hover:opacity-90">
+          How to use heall
+        </button>
+        <button type="button" onClick={onExample} className="rounded-md border border-line px-3.5 py-1.5 text-sm hover:bg-raised">
+          Watch an example run
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function Header(props: {
   runs: RunInfo[];
-  online: boolean | null;
   source: Source | null;
   following: boolean;
   onPick: (s: Source | null) => void;
-  theme: "dark" | "light" | null;
-  onTheme: (t: "dark" | "light") => void;
-  guide: boolean;
+  onTheme: () => void;
   onGuide: () => void;
+  onBack: () => void;
   live: boolean;
   state: RunState;
   playback: Playback;
   total: number;
 }) {
-  const { runs, online, source, onPick, live, state, playback, total } = props;
+  const { runs, source, onPick, live, state, playback, total } = props;
   const file = useRef<HTMLInputElement>(null);
-  const value = props.following ? "latest" : sourceKey(source);
+  const value = props.following ? (runs.length > 0 ? "latest" : "none") : sourceKey(source);
 
   const choose = (v: string) => {
-    if (v === "latest") return onPick(null);
+    if (v === "latest" || v === "none") return onPick(null);
     const [kind, ...rest] = v.split(":");
     const name = rest.join(":");
     if (kind === "server") onPick({ kind: "server", id: name });
@@ -169,7 +221,20 @@ function Header(props: {
 
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <button
+        type="button"
+        onClick={props.onBack}
+        className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm hover:bg-raised"
+      >
+        <svg viewBox="0 0 16 16" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9.5 3.5L5 8l4.5 4.5" />
+        </svg>
+        Back
+      </button>
       <h1 className="font-mono text-xl font-bold tracking-tight">heall</h1>
+      <button type="button" onClick={props.onGuide} className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm hover:bg-raised">
+        How to use
+      </button>
 
       <label className="flex items-center gap-2 text-sm">
         <span className="sr-only">Run to show</span>
@@ -178,7 +243,7 @@ function Header(props: {
           onChange={(e) => choose(e.target.value)}
           className="max-w-80 rounded-md border border-line bg-surface px-2 py-1.5 text-sm"
         >
-          {online && <option value="latest">Latest run on this machine</option>}
+          {runs.length > 0 ? <option value="latest">Latest run on this machine</option> : <option value="none">No run selected</option>}
           {source?.kind === "file" && <option value={sourceKey(source)}>File: {source.name}</option>}
           {runs.length > 0 && (
             <optgroup label="Runs on this machine">
@@ -189,7 +254,7 @@ function Header(props: {
               ))}
             </optgroup>
           )}
-          <optgroup label="Recorded samples">
+          <optgroup label="Example runs (recorded)">
             {SAMPLES.map((s) => (
               <option key={s.name} value={`sample:${s.name}`}>
                 {s.label}
@@ -202,15 +267,6 @@ function Header(props: {
         Open events file
       </button>
       <input ref={file} type="file" accept=".jsonl,.json,.txt" className="hidden" onChange={(e) => open(e.target.files?.[0])} />
-
-      <button
-        type="button"
-        onClick={props.onGuide}
-        aria-pressed={props.guide}
-        className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm hover:bg-raised"
-      >
-        How to use
-      </button>
 
       <RunStatus live={live} state={state} replaying={playback.replaying} />
       <span className="flex-1" />
@@ -251,10 +307,7 @@ function Header(props: {
         </label>
         <button
           type="button"
-          onClick={() => {
-            const dark = props.theme ? props.theme === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-            props.onTheme(dark ? "light" : "dark");
-          }}
+          onClick={props.onTheme}
           className="rounded-md border border-line bg-surface px-2.5 py-1.5 hover:bg-raised"
         >
           Switch theme

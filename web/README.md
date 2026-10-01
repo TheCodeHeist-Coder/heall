@@ -14,6 +14,12 @@ make serve    # http://localhost:7777
 Start a run in another terminal and it appears by itself: every `heall run`
 records its events under `.heall/<run id>/`, and the server follows that file.
 
+The site has two pages in one. A newcomer lands on the **guide**: what heall
+is and the five steps to use it, each with a copy button. The **Dashboard**
+button opens the dashboard; "How to use" goes back. Where there are runs on
+the machine, the dashboard opens first. With no runs it says so and shows
+nothing: example runs open only when asked for.
+
 ## What it can show
 
 | Source | How |
@@ -33,6 +39,7 @@ Links can open a given view:
 | `?run=<run id>` | Open that run |
 | `?sample=off-by-one`, `outdated-test` or `flaky` | Open a recorded sample |
 | `?at=42` | Open paused after that many events |
+| `?view=dashboard` or `guide` | Open that page instead of the default |
 | `?theme=dark` or `light` | Use that theme instead of the system's |
 
 ## Development
