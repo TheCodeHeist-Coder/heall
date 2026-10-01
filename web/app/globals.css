@@ -1,26 +1,112 @@
 @import "tailwindcss";
 
+/* Colours are chosen per mode, not flipped: each dark value is picked for
+   the dark surface. Status colours are the same in both modes and are never
+   the only signal; every status mark also carries a glyph or a label. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --raised: #f1f0ec;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --line: #e1e0d9;
+  --line-strong: #c3c2b7;
+  --good: #0ca30c;
+  --warn: #fab219;
+  --bad: #d03b3b;
+  --skip: #b9b8b0;
+  --accent: #2a78d6;
+  --good-wash: #e3f4e0;
+  --bad-wash: #fbe6e3;
+  --warn-wash: #fdf1d3;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark follows the system setting unless the reader chose a theme with the
+   toggle, which sets data-theme and wins either way. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --raised: #252523;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --line: #2c2c2a;
+    --line-strong: #454541;
+    --good: #0ca30c;
+    --warn: #fab219;
+    --bad: #d03b3b;
+    --skip: #5c5b56;
+    --accent: #3987e5;
+    --good-wash: #12301a;
+    --bad-wash: #3a1a19;
+    --warn-wash: #3a2f10;
   }
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --raised: #252523;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --line: #2c2c2a;
+  --line-strong: #454541;
+  --good: #0ca30c;
+  --warn: #fab219;
+  --bad: #d03b3b;
+  --skip: #5c5b56;
+  --accent: #3987e5;
+  --good-wash: #12301a;
+  --bad-wash: #3a1a19;
+  --warn-wash: #3a2f10;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-skip: var(--skip);
+  --color-accent: var(--accent);
+  --color-good-wash: var(--good-wash);
+  --color-bad-wash: var(--bad-wash);
+  --color-warn-wash: var(--warn-wash);
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* A commit that is being tested right now. */
+@keyframes testing {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+.testing { animation: testing 1s ease-in-out infinite; }
+
+@keyframes arrive {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.arrive { animation: arrive 180ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .testing, .arrive { animation: none; }
 }
