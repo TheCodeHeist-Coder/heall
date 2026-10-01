@@ -1,7 +1,10 @@
-.PHONY: build test test-cli test-agent test-web
+.PHONY: build demo test test-cli test-agent test-web
 
 build:
 	cd cli && go build -o ../bin/heall .
+
+demo:
+	node demo/generate.mjs
 
 test: test-cli test-agent test-web
 
