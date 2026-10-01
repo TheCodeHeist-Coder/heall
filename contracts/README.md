@@ -220,6 +220,7 @@ has no knowledge of the repository's language.
 - `forbid_added` lists regular expressions that no line added by a patch may
   match, such as code that detects the test runner.
 - `sandbox.fresh_per_run: true` starts a new container for every command
-  while reproducing and bisecting. By default one container per worker is
-  reused there, which is several times faster. Patches from the agent are
-  always run in a new container, whatever this is set to.
+  while reproducing and bisecting. By default those stages share one
+  container, each worker in its own worktree, which is several times faster.
+  Patches from the agent are always run in a new container, whatever this is
+  set to.

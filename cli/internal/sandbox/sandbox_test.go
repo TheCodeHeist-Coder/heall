@@ -3,6 +3,7 @@ package sandbox
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -222,10 +223,11 @@ func TestDockerBoxReusesOneContainer(t *testing.T) {
 	d := dockerOrSkip(t)
 	ctx := context.Background()
 	dir := t.TempDir()
-	box := d.Open(dir)
+	shared := d.Share(dir)
+	box := shared.At("")
 
 	if left := leftovers(t, d); left != "" {
-		t.Fatalf("Open started a container before it was needed: %s", left)
+		t.Fatalf("Share started a container before it was needed: %s", left)
 	}
 	// /tmp is outside the mounted directory, so a file there survives only
 	// if the second command runs in the same container.
@@ -255,11 +257,11 @@ func TestDockerBoxReusesOneContainer(t *testing.T) {
 		t.Errorf("exit=%d err=%v: the reused container reached the network", res.ExitCode, err)
 	}
 
-	if err := box.Close(); err != nil {
+	if err := shared.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if left := leftovers(t, d); left != "" {
-		t.Errorf("container left after the box was closed: %s", left)
+		t.Errorf("container left after the sandbox was closed: %s", left)
 	}
 }
 
@@ -267,8 +269,9 @@ func TestDockerBoxTimeoutDiscardsTheContainer(t *testing.T) {
 	d := dockerOrSkip(t)
 	d.Timeout = 1500 * time.Millisecond
 	ctx := context.Background()
-	box := d.Open(t.TempDir())
-	defer box.Close()
+	shared := d.Share(t.TempDir())
+	defer shared.Close()
+	box := shared.At("")
 
 	if _, err := box.Run(ctx, []string{"touch", "/tmp/before"}); err != nil {
 		t.Fatal(err)
@@ -295,5 +298,85 @@ func TestFreshBoxStartsOverEveryTime(t *testing.T) {
 	res, err := box.Run(ctx, []string{"test", "-e", "/tmp/kept"})
 	if err != nil || res.ExitCode == 0 {
 		t.Errorf("exit=%d err=%v: a fresh box kept state between commands", res.ExitCode, err)
+	}
+}
+
+func TestDockerSharedRunsWorkersSideBySide(t *testing.T) {
+	d := dockerOrSkip(t)
+	ctx := context.Background()
+	root := t.TempDir()
+	const workers = 6
+	for w := range workers {
+		if err := os.MkdirAll(filepath.Join(root, fmt.Sprintf("w%d", w)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shared := d.Share(root)
+	defer shared.Close()
+
+	// Every worker sleeps for a second in its own directory. Side by side
+	// that takes about a second; one after another it would take six.
+	start := time.Now()
+	var wg sync.WaitGroup
+	for w := range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := shared.At(fmt.Sprintf("w%d", w)).Run(ctx, []string{"sh", "-c", "sleep 1; pwd; touch mine"})
+			if err != nil || res.ExitCode != 0 || strings.TrimSpace(res.Output) != fmt.Sprintf("/work/w%d", w) {
+				t.Errorf("worker %d: exit=%d err=%v output=%q", w, res.ExitCode, err, res.Output)
+			}
+		}()
+	}
+	wg.Wait()
+	if elapsed := time.Since(start); elapsed > 4*time.Second {
+		t.Errorf("six workers took %v: they are not running at the same time", elapsed)
+	}
+	for w := range workers {
+		if _, err := os.Stat(filepath.Join(root, fmt.Sprintf("w%d", w), "mine")); err != nil {
+			t.Errorf("worker %d did not run in its own directory: %v", w, err)
+		}
+	}
+	if n := len(strings.Split(leftovers(t, d), "\n")); n != 1 {
+		t.Errorf("%d containers for six workers, want one shared container", n)
+	}
+}
+
+func TestDockerSharedSurvivesAnotherWorkersTimeout(t *testing.T) {
+	d := dockerOrSkip(t)
+	d.Timeout = 2 * time.Second
+	ctx := context.Background()
+	root := t.TempDir()
+	shared := d.Share(root)
+	defer shared.Close()
+	if _, err := shared.At("").Run(ctx, []string{"true"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// One worker hangs and is timed out, which removes the container. The
+	// other is in the middle of a command at that moment; it must still
+	// come back with its own result, not with a failure caused by the
+	// container being taken away.
+	var wg sync.WaitGroup
+	var hung, steady Result
+	var hungErr, steadyErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		hung, hungErr = shared.At("").Run(ctx, []string{"sleep", "60"})
+	}()
+	go func() {
+		defer wg.Done()
+		// Started a second later, so it is half way through when the
+		// container is removed.
+		time.Sleep(time.Second)
+		steady, steadyErr = shared.At("").Run(ctx, []string{"sh", "-c", "sleep 1.5; echo done; exit 7"})
+	}()
+	wg.Wait()
+	if hungErr != nil || !hung.TimedOut {
+		t.Errorf("hung worker: timedOut=%v err=%v", hung.TimedOut, hungErr)
+	}
+	if steadyErr != nil || steady.ExitCode != 7 || !strings.Contains(steady.Output, "done") {
+		t.Errorf("the other worker lost its result: exit=%d timedOut=%v err=%v output=%q", steady.ExitCode, steady.TimedOut, steadyErr, steady.Output)
 	}
 }

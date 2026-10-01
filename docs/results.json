@@ -1,0 +1,337 @@
+{
+  "runs": 3,
+  "metrics": {
+    "Culprit accuracy": "12 of 12",
+    "Fix success rate": "9 of 9",
+    "Correct refusals": "6 of 6",
+    "Wrong fixes delivered": "0 of 6",
+    "Attempts per fix": "1.00",
+    "Patches rejected or failed": "0",
+    "Runs that errored": "0 of 15"
+  },
+  "results": [
+    {
+      "scenario": {
+        "name": "off-by-one",
+        "branch": "bug/off-by-one",
+        "summary": "A refactor makes paginate() drop the last item of a page. Two commits in the range have syntax errors. The obvious fix (changing bounds()) breaks other tests; the right fix is one line in paginate().",
+        "expected": "fixed",
+        "escalate_stage": null,
+        "flaky": false,
+        "good": "91f73fd2aab57742887bbd9a66cf349f8f24ee7b",
+        "bad": "ea41ac675e45ebbe3666a84268c174a934550e70",
+        "commits": 120,
+        "target_test": "paginate returns a full page",
+        "test_file": "test/paginate.test.js",
+        "culprit": "bef1c5acdd5a48bd378b380cb5c51e84dab8723c",
+        "culprit_index": 53,
+        "unbuildable": [
+          "04a20f678b8de50062a1f71a889f40300816ce08",
+          "995661241bd37977da38b764309e9ae6668036fd"
+        ],
+        "log": "logs/off-by-one.log",
+        "flaky_failures": null
+      },
+      "runs": [
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "bef1c5acdd5a48bd378b380cb5c51e84dab8723c",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 6.31,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2770 tokens in, 194 out",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "bef1c5acdd5a48bd378b380cb5c51e84dab8723c",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 9.419,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2770 tokens in, 189 out",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "bef1c5acdd5a48bd378b380cb5c51e84dab8723c",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 10.522,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2770 tokens in, 190 out",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "name": "outdated-test",
+        "branch": "change/price-format",
+        "summary": "formatPrice() changed format on purpose (a documented product decision), but one test in another file still asserts the old format. The two tests now contradict each other, so no source-only patch can pass both; the test must be updated by a person.",
+        "expected": "escalated",
+        "escalate_stage": "heal",
+        "flaky": false,
+        "good": "91f73fd2aab57742887bbd9a66cf349f8f24ee7b",
+        "bad": "d213691449d0e804ac75e7abfe5c067b7eaf5e68",
+        "commits": 120,
+        "target_test": "priceLabel uses the shared formatter",
+        "test_file": "test/cart.test.js",
+        "culprit": "f98338b23f6464e47a02fbe58128161d4ec02165",
+        "culprit_index": 62,
+        "unbuildable": [],
+        "log": "logs/outdated-test.log",
+        "flaky_failures": null
+      },
+      "runs": [
+        {
+          "outcome": "escalated",
+          "stage": "heal",
+          "culprit": "f98338b23f6464e47a02fbe58128161d4ec02165",
+          "rounds": 3,
+          "attempts": 0,
+          "seconds": 8.502,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2286 tokens in, 439 out",
+          "reason": "The test expects old behavior that conflicts with the intentional breaking change; fixing it requires updating the test, which is not permitted in this stage.",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "escalated",
+          "stage": "heal",
+          "culprit": "f98338b23f6464e47a02fbe58128161d4ec02165",
+          "rounds": 3,
+          "attempts": 0,
+          "seconds": 18.244,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2286 tokens in, 488 out, 8s spent waiting for the rate limit",
+          "reason": "The failing test asserts mutually exclusive expectations after a breaking change; no legitimate automatic fix can satisfy both without breaking other tests.",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "escalated",
+          "stage": "heal",
+          "culprit": "f98338b23f6464e47a02fbe58128161d4ec02165",
+          "rounds": 3,
+          "attempts": 0,
+          "seconds": 23.281,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 2 calls, 4621 tokens in, 632 out, 14s spent waiting for the rate limit",
+          "reason": "The failing test asserts outdated behavior that conflicts with the intentional breaking change; fixing requires test modification.",
+          "ok": true,
+          "culprit_ok": true
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "name": "flaky",
+        "branch": "flaky/retry-jitter",
+        "summary": "A new test depends on Math.random() and fails about half the time on the same commit. No commit can be blamed, so heall should stop at Reproduce.",
+        "expected": "escalated",
+        "escalate_stage": "reproduce",
+        "flaky": true,
+        "good": "91f73fd2aab57742887bbd9a66cf349f8f24ee7b",
+        "bad": "75a1e1d5add55c6b837749c47ee0d2c533e18925",
+        "commits": 120,
+        "target_test": "jitteredDelay stays close to the base delay",
+        "test_file": "test/retry.test.js",
+        "culprit": "3aa1810451b4d4901107593929604620f495645f",
+        "culprit_index": 67,
+        "unbuildable": [],
+        "log": "logs/flaky.log",
+        "flaky_failures": "17/40"
+      },
+      "runs": [
+        {
+          "outcome": "escalated",
+          "stage": "reproduce",
+          "culprit": null,
+          "rounds": 0,
+          "attempts": 0,
+          "seconds": 0.584,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "",
+          "reason": "the test is flaky",
+          "ok": true,
+          "culprit_ok": null
+        },
+        {
+          "outcome": "escalated",
+          "stage": "reproduce",
+          "culprit": null,
+          "rounds": 0,
+          "attempts": 0,
+          "seconds": 0.637,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "",
+          "reason": "the test is flaky",
+          "ok": true,
+          "culprit_ok": null
+        },
+        {
+          "outcome": "escalated",
+          "stage": "reproduce",
+          "culprit": null,
+          "rounds": 0,
+          "attempts": 0,
+          "seconds": 0.679,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "",
+          "reason": "the test is flaky",
+          "ok": true,
+          "culprit_ok": null
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "name": "regex",
+        "branch": "bug/slug-regex",
+        "summary": "A tidy-up of slugify() drops the + from its pattern, so every unsafe character becomes its own dash. The same commit adds slugWithId(), which builds on slugify().",
+        "expected": "fixed",
+        "escalate_stage": null,
+        "flaky": false,
+        "good": "91f73fd2aab57742887bbd9a66cf349f8f24ee7b",
+        "bad": "e79182e54700923f07cca8f1370799286480e3c5",
+        "commits": 120,
+        "target_test": "slugify joins words with single dashes",
+        "test_file": "test/slug.test.js",
+        "culprit": "8c8f4c329e8d47663ba43a42fcc8b6f88569b397",
+        "culprit_index": 75,
+        "unbuildable": [],
+        "log": "logs/regex.log",
+        "flaky_failures": null
+      },
+      "runs": [
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "8c8f4c329e8d47663ba43a42fcc8b6f88569b397",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 20.183,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2114 tokens in, 247 out, 14s spent waiting for the rate limit",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "8c8f4c329e8d47663ba43a42fcc8b6f88569b397",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 16.764,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2114 tokens in, 251 out, 10s spent waiting for the rate limit",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "8c8f4c329e8d47663ba43a42fcc8b6f88569b397",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 17.724,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2114 tokens in, 233 out, 11s spent waiting for the rate limit",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        }
+      ]
+    },
+    {
+      "scenario": {
+        "name": "renamed-export",
+        "branch": "bug/renamed-export",
+        "summary": "A function is renamed in one module and its own test is updated, but another module still calls it by the old name, so that call fails at run time.",
+        "expected": "fixed",
+        "escalate_stage": null,
+        "flaky": false,
+        "good": "91f73fd2aab57742887bbd9a66cf349f8f24ee7b",
+        "bad": "3fd193adf4d118358cc8a8b37413e473195d4d38",
+        "commits": 120,
+        "target_test": "discountedTotal takes a percentage off the cart",
+        "test_file": "test/cart.test.js",
+        "culprit": "f2d4f39852a673bc5108d40d1e52c9e3646c9892",
+        "culprit_index": 82,
+        "unbuildable": [],
+        "log": "logs/renamed-export.log",
+        "flaky_failures": null
+      },
+      "runs": [
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "f2d4f39852a673bc5108d40d1e52c9e3646c9892",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 20.014,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2286 tokens in, 147 out, 13s spent waiting for the rate limit",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "f2d4f39852a673bc5108d40d1e52c9e3646c9892",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 16.63,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2286 tokens in, 147 out, 9s spent waiting for the rate limit",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        },
+        {
+          "outcome": "fixed",
+          "stage": "",
+          "culprit": "f2d4f39852a673bc5108d40d1e52c9e3646c9892",
+          "rounds": 3,
+          "attempts": 1,
+          "seconds": 19.861,
+          "rejected": 0,
+          "failed": 0,
+          "usage": "model usage: 1 calls, 2286 tokens in, 147 out, 12s spent waiting for the rate limit",
+          "reason": "",
+          "ok": true,
+          "culprit_ok": true
+        }
+      ]
+    }
+  ]
+}

@@ -27,6 +27,8 @@ type Pool struct {
 	test   string
 	root   string
 	fresh  bool
+	// shared is the one sandbox every worker runs in, unless fresh is set.
+	shared sandbox.Shared
 	slots  []slot
 	// closed stops a slot from being set up after Close has swept it.
 	closed atomic.Bool
@@ -46,8 +48,9 @@ type slot struct {
 // New prepares a pool for up to workers workers. test names the test to
 // run; empty runs the whole suite. Call Close when done.
 //
-// Each worker's sandbox is kept alive and reused from commit to commit,
-// unless the config asks for a fresh one per command.
+// The workers share one sandbox that stays alive for the life of the pool,
+// each in its own worktree, unless the config asks for a fresh sandbox per
+// command.
 func New(repo *gitx.Repo, runner sandbox.Runner, t tester.Tester, test string, workers int) (*Pool, error) {
 	root, err := os.MkdirTemp("", "heall-worktrees-")
 	if err != nil {
@@ -60,6 +63,7 @@ func New(repo *gitx.Repo, runner sandbox.Runner, t tester.Tester, test string, w
 		test:   test,
 		root:   root,
 		fresh:  t.Cfg.Sandbox.FreshPerRun,
+		shared: runner.Share(root),
 		slots:  make([]slot, workers),
 	}, nil
 }
@@ -76,7 +80,8 @@ func (p *Pool) ready(ctx context.Context, worker int, s *slot, sha string) error
 	if s.dir != "" {
 		return p.repo.Checkout(ctx, s.dir, sha)
 	}
-	dir := filepath.Join(p.root, fmt.Sprintf("w%d", worker))
+	name := fmt.Sprintf("w%d", worker)
+	dir := filepath.Join(p.root, name)
 	if err := p.repo.AddWorktree(ctx, dir, sha); err != nil {
 		return err
 	}
@@ -84,7 +89,7 @@ func (p *Pool) ready(ctx context.Context, worker int, s *slot, sha string) error
 	if p.fresh {
 		s.box = sandbox.Fresh(p.runner, dir)
 	} else {
-		s.box = p.runner.Open(dir)
+		s.box = p.shared.At(name)
 	}
 	return nil
 }
@@ -155,10 +160,10 @@ func (p *Pool) Close() error {
 			if s.dir == "" {
 				return
 			}
-			errs[w] = errors.Join(s.box.Close(), p.repo.RemoveWorktree(ctx, s.dir))
+			errs[w] = p.repo.RemoveWorktree(ctx, s.dir)
 		}()
 	}
 	wg.Wait()
-	errs = append(errs, os.RemoveAll(p.root), p.repo.PruneWorktrees(ctx))
+	errs = append(errs, p.shared.Close(), os.RemoveAll(p.root), p.repo.PruneWorktrees(ctx))
 	return errors.Join(errs...)
 }

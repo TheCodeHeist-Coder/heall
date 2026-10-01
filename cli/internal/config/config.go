@@ -30,7 +30,7 @@ type Sandbox struct {
 	Image          string `yaml:"image"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 	// FreshPerRun starts a new container for every command while bisecting
-	// and reproducing, instead of reusing one per worker. It is slower and
+	// and reproducing, instead of sharing one between the workers. It is slower and
 	// only needed when commits in the range cannot be trusted to leave the
 	// container alone. Patches from the agent always get a new container.
 	FreshPerRun bool `yaml:"fresh_per_run"`

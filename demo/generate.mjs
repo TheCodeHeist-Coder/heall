@@ -535,7 +535,173 @@ const SCENARIOS = [
       },
     ],
   },
+  // Scenarios are only ever added at the end: each branch's commit hashes
+  // depend on the ones built before it, and the earlier branches are pushed.
+  {
+    name: "regex",
+    branch: "bug/slug-regex",
+    seed: 41,
+    expected: "fixed",
+    escalateStage: null,
+    target: { name: "slugify joins words with single dashes", file: "test/slug.test.js" },
+    summary:
+      "A tidy-up of slugify() drops the + from its pattern, so every unsafe character becomes its own dash. The same commit adds slugWithId(), which builds on slugify().",
+    scripted: [
+      {
+        at: 28,
+        author: "asha",
+        message: ["feat(slug): add slugify for product URLs"],
+        apply: (state) => {
+          write("src/slug.js", SLUG);
+          write("test/slug.test.js", slugTest("slugify"));
+          state.api.push(["slug.slugify", "`slug.slugify(name)`: URL-safe form of a product name."]);
+          write("README.md", readme(state));
+        },
+      },
+      {
+        at: 74,
+        tag: "culprit",
+        author: "tomas",
+        message: [
+          "refactor(slug): name the slug pattern, add slugWithId",
+          "Two products can share a name, so product URLs need the id as well.",
+        ],
+        apply: (state) => {
+          write("src/slug.js", SLUG_REFACTORED);
+          write("test/slug.test.js", slugTest("slugify, slugWithId", SLUG_ID_TEST));
+          state.api.push(["slug.slugWithId", "`slug.slugWithId(name, id)`: Slug that stays unique per product."]);
+          write("README.md", readme(state));
+        },
+      },
+    ],
+  },
+  {
+    name: "renamed-export",
+    branch: "bug/renamed-export",
+    seed: 43,
+    expected: "fixed",
+    escalateStage: null,
+    target: { name: "discountedTotal takes a percentage off the cart", file: "test/cart.test.js" },
+    summary:
+      "A function is renamed in one module and its own test is updated, but another module still calls it by the old name, so that call fails at run time.",
+    scripted: [
+      {
+        at: 24,
+        author: "lena",
+        message: ["feat(discount): add percentage discounts to the cart"],
+        apply: (state) => {
+          write("src/discount.js", DISCOUNT);
+          write("test/discount.test.js", discountTest("percentOff"));
+          write("src/cart.js", CART_DISCOUNT);
+          write("test/cart.test.js", CART_DISCOUNT_TEST);
+          state.api.push(
+            ["discount.percentOff", "`discount.percentOff(cents, percent)`: Price after a percentage discount."],
+            ["cart.discountedTotal", "`cart.discountedTotal(items, percent)`: Cart total after a percentage discount."],
+          );
+          write("README.md", readme(state));
+        },
+      },
+      {
+        at: 81,
+        tag: "culprit",
+        author: "ravi",
+        message: [
+          "refactor(discount): rename percentOff to applyPercent",
+          "percentOff read as if it returned the amount taken off. It returns the\nprice after the discount, so say that.",
+        ],
+        apply: (state) => {
+          write("src/discount.js", DISCOUNT.replaceAll("percentOff", "applyPercent"));
+          write("test/discount.test.js", discountTest("applyPercent"));
+          const entry = state.api.find(([key]) => key === "discount.percentOff");
+          entry[0] = "discount.applyPercent";
+          entry[1] = "`discount.applyPercent(cents, percent)`: Price after a percentage discount.";
+          write("README.md", readme(state));
+        },
+      },
+    ],
+  },
 ];
+
+const SLUG = `// URL-safe form of a product name: "Blue Shirt (XL)" -> "blue-shirt-xl".
+export function slugify(name) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+`;
+
+// The + is gone from the pattern: a run of unsafe characters now gives a run
+// of dashes instead of one.
+const SLUG_REFACTORED = `// Anything that is not a lower-case letter or a digit.
+const UNSAFE = /[^a-z0-9]/g;
+
+// URL-safe form of a product name: "Blue Shirt (XL)" -> "blue-shirt-xl".
+export function slugify(name) {
+  return name
+    .toLowerCase()
+    .replace(UNSAFE, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Slug that stays unique when two products share a name.
+export function slugWithId(name, id) {
+  return \`\${slugify(name)}-\${id}\`;
+}
+`;
+
+const slugTest = (names, extra = "") => `${TEST_HEADER}import { ${names} } from "../src/slug.js";
+
+test("slugify joins words with single dashes", () => {
+  assert.equal(slugify("Blue  Shirt (XL)"), "blue-shirt-xl");
+});
+
+test("slugify trims dashes at the ends", () => {
+  assert.equal(slugify("  Hello! "), "hello");
+});
+${extra}`;
+
+const SLUG_ID_TEST = `
+test("slugWithId ends with the product id", () => {
+  assert.equal(slugWithId("Mug", 7), "mug-7");
+});
+`;
+
+const DISCOUNT = `// Price in cents after taking \`percent\` off, rounded to a whole cent.
+export function percentOff(cents, percent) {
+  return Math.round(cents * (1 - percent / 100));
+}
+`;
+
+const discountTest = (name) => `${TEST_HEADER}import { ${name} } from "../src/discount.js";
+
+test("${name} takes a percentage off a price", () => {
+  assert.equal(${name}(2000, 10), 1800);
+});
+
+test("${name} rounds to a whole cent", () => {
+  assert.equal(${name}(999, 15), 849);
+});
+`;
+
+// cart.js reaches the discount module through a namespace import, so a name
+// that no longer exists there is only noticed when the call is made.
+const CART_DISCOUNT = `${CART.replace(
+  'import { formatPrice } from "./format.js";',
+  'import * as discount from "./discount.js";\nimport { formatPrice } from "./format.js";',
+)}
+// Cart total in cents after a percentage discount.
+export function discountedTotal(items, percent) {
+  return discount.percentOff(cartTotal(items), percent);
+}
+`;
+
+const CART_DISCOUNT_TEST = `${CART_TEST.replace("{ cartTotal, priceLabel }", "{ cartTotal, discountedTotal, priceLabel }")}
+test("discountedTotal takes a percentage off the cart", () => {
+  const items = [{ cents: 1000, qty: 2 }];
+  assert.equal(discountedTotal(items, 25), 1500);
+});
+`;
 
 // bounds() returns an inclusive `end`, which pageLabel() needs. paginate()
 // passes it to slice(), whose end is exclusive: that is the bug.
@@ -958,6 +1124,17 @@ function buildScenario(scn, good) {
 
 // ---------------------------------------------------------------------------
 
+// A remote set on the previous build is kept: the hashes are the same, so
+// the rebuilt repository still matches what was pushed there.
+let remote = "";
+if (fs.existsSync(path.join(REPO, ".git"))) {
+  try {
+    remote = git("remote", "get-url", "origin");
+  } catch {
+    // The previous build had no remote.
+  }
+}
+
 if (fs.existsSync(OUT)) {
   // Only delete a directory this script created.
   if (fs.readdirSync(OUT).length > 0 && !fs.existsSync(MANIFEST)) {
@@ -976,6 +1153,7 @@ const scenarios = SCENARIOS.map((scn) => {
   return buildScenario(scn, good);
 });
 git("checkout", "-q", "main");
+if (remote) git("remote", "add", "origin", remote);
 
 fs.writeFileSync(MANIFEST, `${JSON.stringify({ repo: "repo", good, scenarios }, null, 2)}\n`);
 
@@ -986,4 +1164,5 @@ for (const s of scenarios) {
   const extra = s.flaky ? `, target failed ${s.flaky_failures} runs` : "";
   console.log(`${s.branch}: bad ${s.bad.slice(0, 10)}, culprit ${culprit}, expect ${s.expected}${extra}`);
 }
+if (remote) console.log(`remote origin kept: ${remote}`);
 console.log(`done in ${((Date.now() - started) / 1000).toFixed(1)}s`);

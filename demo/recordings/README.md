@@ -19,3 +19,5 @@ recorded again.
 |---|---|---|---|
 | `off-by-one.jsonl` | `bug/off-by-one` | `--inject-bad-patch` | Fixed on the model's first attempt |
 | `outdated-test.jsonl` | `change/price-format` | none | Escalated without submitting a patch |
+| `regex.jsonl` | `bug/slug-regex` | none | Fixed on the first attempt |
+| `renamed-export.jsonl` | `bug/renamed-export` | none | Fixed on the first attempt |

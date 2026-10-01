@@ -1,4 +1,4 @@
-.PHONY: build web serve demo e2e test test-cli test-agent test-web
+.PHONY: build web serve demo e2e preflight benchmark evaluate test test-cli test-agent test-web
 
 build:
 	cd cli && go build -o ../bin/heall .
@@ -17,6 +17,19 @@ demo:
 # The heal stage on the demo repository, with scripted model replies.
 e2e: build
 	scripts/e2e.sh
+
+# Is this machine ready to demo?
+preflight:
+	scripts/preflight.sh
+
+# Times the bisect against git bisect run; writes docs/benchmark.md.
+benchmark: build
+	scripts/benchmark.py
+
+# Runs every demo scenario live and scores it; writes docs/results.md.
+# Needs a Groq key.
+evaluate: build
+	scripts/evaluate.py
 
 test: test-cli test-agent test-web
 

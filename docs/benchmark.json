@@ -1,0 +1,259 @@
+{
+  "runs": 5,
+  "cpus": 12,
+  "fast": {
+    "bug/off-by-one": [
+      {
+        "method": "git bisect run",
+        "seconds": 7.430281864999415,
+        "fastest": 2.6865973599997233,
+        "slowest": 13.51851203499973,
+        "all_seconds": [
+          2.69,
+          13.52,
+          5.15,
+          7.97,
+          7.43
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 1 worker",
+        "seconds": 7.762625425999431,
+        "fastest": 2.929618191999907,
+        "slowest": 9.304918737001572,
+        "all_seconds": [
+          2.93,
+          6.39,
+          7.76,
+          9.3,
+          8.27
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 6 workers",
+        "seconds": 6.9960453789972235,
+        "fastest": 4.483171908999793,
+        "slowest": 8.52891202200044,
+        "all_seconds": [
+          4.48,
+          4.81,
+          7.88,
+          7.0,
+          8.53
+        ],
+        "tested": 15,
+        "rounds": 3,
+        "correct": true
+      }
+    ],
+    "change/price-format": [
+      {
+        "method": "git bisect run",
+        "seconds": 8.591546214000118,
+        "fastest": 5.749921144000837,
+        "slowest": 15.831879149998713,
+        "all_seconds": [
+          15.48,
+          15.83,
+          5.75,
+          8.59,
+          7.72
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 1 worker",
+        "seconds": 9.273748911000439,
+        "fastest": 3.773699512999883,
+        "slowest": 14.5817032140003,
+        "all_seconds": [
+          14.58,
+          13.87,
+          3.77,
+          7.38,
+          9.27
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 6 workers",
+        "seconds": 6.431878746996517,
+        "fastest": 6.219377984001767,
+        "slowest": 9.740561032002006,
+        "all_seconds": [
+          9.74,
+          6.85,
+          6.22,
+          6.34,
+          6.43
+        ],
+        "tested": 14,
+        "rounds": 3,
+        "correct": true
+      }
+    ],
+    "bug/slug-regex": [
+      {
+        "method": "git bisect run",
+        "seconds": 3.4723763090005377,
+        "fastest": 3.3370141570012493,
+        "slowest": 9.02042550799888,
+        "all_seconds": [
+          4.0,
+          9.02,
+          3.34,
+          3.39,
+          3.47
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 1 worker",
+        "seconds": 2.6700820369987923,
+        "fastest": 2.489010003999283,
+        "slowest": 3.7408796409981733,
+        "all_seconds": [
+          3.36,
+          3.74,
+          2.59,
+          2.49,
+          2.67
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 6 workers",
+        "seconds": 4.588239951997821,
+        "fastest": 3.907445564000227,
+        "slowest": 5.489077447000454,
+        "all_seconds": [
+          4.63,
+          4.59,
+          3.91,
+          4.03,
+          5.49
+        ],
+        "tested": 14,
+        "rounds": 3,
+        "correct": true
+      }
+    ],
+    "bug/renamed-export": [
+      {
+        "method": "git bisect run",
+        "seconds": 4.398828752000554,
+        "fastest": 3.0219494299999496,
+        "slowest": 10.643156857000577,
+        "all_seconds": [
+          10.64,
+          7.87,
+          4.4,
+          3.37,
+          3.02
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 1 worker",
+        "seconds": 2.9722412939991045,
+        "fastest": 2.479865105000499,
+        "slowest": 5.4380605810001725,
+        "all_seconds": [
+          5.44,
+          4.42,
+          2.97,
+          2.48,
+          2.73
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 6 workers",
+        "seconds": 3.406593273000908,
+        "fastest": 2.826746787999582,
+        "slowest": 8.992692955001985,
+        "all_seconds": [
+          8.99,
+          3.98,
+          2.97,
+          3.41,
+          2.83
+        ],
+        "tested": 13,
+        "rounds": 3,
+        "correct": true
+      }
+    ]
+  },
+  "slow": {
+    "bug/off-by-one": [
+      {
+        "method": "git bisect run",
+        "seconds": 23.115579205998074,
+        "fastest": 23.085867576002784,
+        "slowest": 24.286245909999707,
+        "all_seconds": [
+          23.12,
+          23.1,
+          23.35,
+          24.29,
+          23.09
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 1 worker",
+        "seconds": 22.873333731000457,
+        "fastest": 22.826264701998298,
+        "slowest": 24.477781246998347,
+        "all_seconds": [
+          22.87,
+          22.86,
+          22.88,
+          24.48,
+          22.83
+        ],
+        "tested": 7,
+        "rounds": 7,
+        "correct": true
+      },
+      {
+        "method": "heall, 6 workers",
+        "seconds": 10.22631042500143,
+        "fastest": 10.161091513997235,
+        "slowest": 10.827732687997923,
+        "all_seconds": [
+          10.2,
+          10.23,
+          10.45,
+          10.83,
+          10.16
+        ],
+        "tested": 15,
+        "rounds": 3,
+        "correct": true
+      }
+    ]
+  },
+  "slow_seconds": 3.0
+}

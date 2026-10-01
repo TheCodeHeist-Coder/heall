@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -38,24 +40,32 @@ type Runner interface {
 	// Prepare does one-off setup, such as pulling the image.
 	Prepare(ctx context.Context) error
 	Run(ctx context.Context, dir string, argv []string) (Result, error)
-	// Open returns a Box that keeps one sandbox alive for dir across many
-	// commands. Nothing is started until the box is first used.
-	Open(dir string) Box
+	// Share returns one long-lived sandbox for everything under root. Nothing
+	// is started until it is first used.
+	Share(root string) Shared
 	// Close removes anything the runner left behind. Call it once, after
 	// the last Run has returned.
 	Close() error
 }
 
-// Box runs commands against one directory. Commands in a box run one at a
-// time.
-//
-// A box from Runner.Open reuses its sandbox, which saves the cost of
-// starting one per command but lets a command see what an earlier one left
-// outside the directory. That is fine for bisecting a repository's own
-// history. Code that has not been reviewed, such as a patch from the agent,
-// must run in a box from Fresh instead.
+// Box runs commands against one directory.
 type Box interface {
 	Run(ctx context.Context, argv []string) (Result, error)
+	Close() error
+}
+
+// Shared is one sandbox that many workers use at once, each in its own
+// subdirectory of the root it was made for.
+//
+// Reusing a sandbox saves the cost of starting one per command, which is
+// most of the time when a test run is short. The price is that a command
+// can see what earlier ones left outside its directory. That is fine for
+// bisecting a repository's own history. Code that has not been reviewed,
+// such as a patch from the agent, must run in a box from Fresh instead.
+type Shared interface {
+	// At returns a Box that runs commands in root/sub. Closing that box does
+	// nothing; close the Shared.
+	At(sub string) Box
 	Close() error
 }
 
@@ -134,8 +144,16 @@ func (l *Local) Prepare(context.Context) error { return nil }
 
 func (l *Local) Close() error { return nil }
 
-// Open has nothing to keep alive for local runs.
-func (l *Local) Open(dir string) Box { return Fresh(l, dir) }
+// Share has nothing to keep alive for local runs.
+func (l *Local) Share(root string) Shared { return localShared{l, root} }
+
+type localShared struct {
+	local *Local
+	root  string
+}
+
+func (s localShared) At(sub string) Box { return Fresh(s.local, filepath.Join(s.root, sub)) }
+func (s localShared) Close() error      { return nil }
 
 func (l *Local) Run(ctx context.Context, dir string, argv []string) (Result, error) {
 	if len(argv) == 0 {
@@ -208,7 +226,7 @@ func (d *Docker) Run(ctx context.Context, dir string, argv []string) (Result, er
 		return Result{}, errors.New("empty command")
 	}
 	name := "heall-" + randomHex(6)
-	args := append(d.runArgs(name, dir, "--rm"), d.Image)
+	args := append(d.runArgs(name, dir, "1g", "512", "--rm"), d.Image)
 	args = append(args, argv...)
 
 	res, err := execute(ctx, d.Timeout, func(ctx context.Context) *exec.Cmd {
@@ -230,15 +248,15 @@ func (d *Docker) Run(ctx context.Context, dir string, argv []string) (Result, er
 // runArgs is "docker run" with the isolation every heall container gets:
 // no network, no capabilities, limited memory and processes, and only dir
 // mounted.
-func (d *Docker) runArgs(name, dir string, extra ...string) []string {
+func (d *Docker) runArgs(name, dir, memory, pids string, extra ...string) []string {
 	args := []string{
 		"run", "--name", name,
 		"--label", sessionLabel + "=" + d.session,
 		"--network", "none",
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",
-		"--memory", "1g",
-		"--pids-limit", "512",
+		"--memory", memory,
+		"--pids-limit", pids,
 		// Run as the calling user so files the tests write can be cleaned up.
 		"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 		"--env", "HOME=/tmp",
@@ -254,77 +272,123 @@ func remove(name string) {
 	_ = exec.CommandContext(ctx, "docker", "rm", "--force", name).Run()
 }
 
-func (d *Docker) Open(dir string) Box { return &dockerBox{docker: d, dir: dir} }
+func (d *Docker) Share(root string) Shared { return &dockerShared{docker: d, root: root} }
 
-// dockerBox keeps one container running and sends each command to it with
-// "docker exec", which is several times cheaper than starting a container.
-type dockerBox struct {
+// dockerShared keeps one container running, with root mounted, and sends
+// each command to it with "docker exec". Starting one container and reusing
+// it is several times cheaper than starting one per command, and cheaper
+// than one per worker.
+type dockerShared struct {
 	docker *Docker
-	dir    string
-	mu     sync.Mutex
+	root   string
+
+	mu sync.Mutex
 	// name is the running container, or empty when there is none.
 	name string
+	// generation counts the containers this sandbox has gone through, so a
+	// command can tell that its container was replaced under it.
+	generation int
 }
 
-func (b *dockerBox) start(ctx context.Context) error {
+// container returns the running container, starting one if needed.
+func (s *dockerShared) container(ctx context.Context) (string, int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.name != "" {
+		return s.name, s.generation, nil
+	}
 	name := "heall-" + randomHex(6)
 	// --init gives the container a real init, so "docker rm" stops it at
 	// once and processes orphaned by a test are reaped.
-	args := append(b.docker.runArgs(name, b.dir, "--rm", "--detach", "--init"), b.docker.Image, "sleep", "2147483647")
+	args := append(s.docker.runArgs(name, s.root, "3g", "2048", "--rm", "--detach", "--init"), s.docker.Image, "sleep", "2147483647")
 	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
 	if err != nil {
 		remove(name)
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return "", 0, ctx.Err()
 		}
-		return fmt.Errorf("start sandbox container: %s", firstLine(out, err))
+		return "", 0, fmt.Errorf("start sandbox container: %s", firstLine(out, err))
 	}
-	b.name = name
-	return nil
+	s.name = name
+	return name, s.generation, nil
 }
 
-func (b *dockerBox) Run(ctx context.Context, argv []string) (Result, error) {
+// discard removes the container of the given generation, unless another
+// command already did.
+func (s *dockerShared) discard(generation int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.generation != generation || s.name == "" {
+		return
+	}
+	remove(s.name)
+	s.name = ""
+	s.generation++
+}
+
+func (s *dockerShared) current() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.generation
+}
+
+func (s *dockerShared) run(ctx context.Context, sub string, argv []string) (Result, error) {
 	if len(argv) == 0 {
 		return Result{}, errors.New("empty command")
 	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.name == "" {
-		if err := b.start(ctx); err != nil {
+	var res Result
+	// A second try covers a container that was taken away mid-command.
+	for range 3 {
+		name, generation, err := s.container(ctx)
+		if err != nil {
 			return Result{}, err
 		}
+		args := append([]string{"exec", "--workdir", path.Join("/work", sub), name}, argv...)
+		// A command that is cut short keeps running inside the container, so
+		// the container goes with it; the next command starts a new one.
+		res, err = execute(ctx, s.docker.Timeout, func(ctx context.Context) *exec.Cmd {
+			return exec.CommandContext(ctx, "docker", args...)
+		}, func() { s.discard(generation) })
+		if err != nil || res.TimedOut {
+			return res, err
+		}
+		if res.ExitCode == 0 {
+			return res, nil
+		}
+		// A failure in a container that has since been replaced says nothing
+		// about the command: another worker's timeout removed the container
+		// while this command was running in it. Run it again.
+		if s.current() != generation {
+			continue
+		}
+		// The container itself is gone or broken: docker's failure, not the
+		// command's.
+		if strings.HasPrefix(res.Output, "Error response from daemon:") {
+			s.discard(generation)
+			continue
+		}
+		return res, nil
 	}
-	name := b.name
-	// A command that is cut short keeps running inside the container, so the
-	// container goes with it; the next command starts a new one.
-	discard := func() {
-		remove(name)
-		b.name = ""
-	}
-	res, err := execute(ctx, b.docker.Timeout, func(ctx context.Context) *exec.Cmd {
-		return exec.CommandContext(ctx, "docker", append([]string{"exec", name}, argv...)...)
-	}, discard)
-	if err != nil {
-		return res, err
-	}
-	// The container itself is gone or broken: docker's failure, not the
-	// command's.
-	if res.ExitCode != 0 && strings.HasPrefix(res.Output, "Error response from daemon:") {
-		discard()
-		return res, fmt.Errorf("docker exec failed: %s", strings.TrimSpace(res.Output))
-	}
-	return res, nil
+	return res, fmt.Errorf("the sandbox container keeps going away: %s", strings.TrimSpace(res.Output))
 }
 
-func (b *dockerBox) Close() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.name != "" {
-		remove(b.name)
-		b.name = ""
-	}
+func (s *dockerShared) At(sub string) Box { return sharedBox{s, sub} }
+
+func (s *dockerShared) Close() error {
+	s.discard(s.current())
 	return nil
 }
+
+type sharedBox struct {
+	shared *dockerShared
+	sub    string
+}
+
+func (b sharedBox) Run(ctx context.Context, argv []string) (Result, error) {
+	return b.shared.run(ctx, b.sub, argv)
+}
+
+func (b sharedBox) Close() error { return nil }
 
 func firstLine(out []byte, err error) string {
 	s := strings.TrimSpace(string(out))
