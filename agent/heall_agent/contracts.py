@@ -55,6 +55,8 @@ class HealRequest:
     # only counts when it is sent through `heall _verify`.
     worktree: str
     heall_bin: str
+    # The .heall.yaml in use; empty means the one in repo_dir.
+    config_path: str
     good: str
     bad: str
     failure: Failure

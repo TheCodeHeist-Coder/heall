@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"heall/internal/events"
 )
@@ -236,4 +237,99 @@ func (s *Snapshot) Find(text string) ([]string, error) {
 		}
 	}
 	return files, nil
+}
+
+// StateDir is where heall keeps its own files for this repository. It is
+// inside git's directory, so it never shows up as a change in a checkout.
+func (r *Repo) StateDir(ctx context.Context) (string, error) {
+	dir, err := r.git(ctx, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "heall"), nil
+}
+
+// TempWorktree checks sha out into a new temporary directory. The returned
+// function removes it and works even after ctx was cancelled.
+func (r *Repo) TempWorktree(ctx context.Context, sha string) (dir string, remove func() error, err error) {
+	root, err := os.MkdirTemp("", "heall-worktree-")
+	if err != nil {
+		return "", nil, err
+	}
+	dir = filepath.Join(root, "w")
+	if err := r.AddWorktree(ctx, dir, sha); err != nil {
+		os.RemoveAll(root)
+		return "", nil, err
+	}
+	return dir, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return errors.Join(r.RemoveWorktree(ctx, dir), os.RemoveAll(root), r.PruneWorktrees(ctx))
+	}, nil
+}
+
+// ApplyPatch applies a unified diff to the worktree at dir. It changes
+// nothing unless the whole patch applies. Hunk line counts are recomputed,
+// since patches written by a model often get them wrong.
+func ApplyPatch(ctx context.Context, dir, patch string) error {
+	if !strings.HasSuffix(patch, "\n") {
+		patch += "\n"
+	}
+	cmd := exec.CommandContext(ctx, "git", "apply", "--recount", "--whitespace=nowarn", "-")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
+	cmd.Stdin = strings.NewReader(patch)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return &ApplyError{Output: strings.TrimSpace(string(out))}
+	}
+	return nil
+}
+
+// ApplyError means git could not apply a patch; Output says why.
+type ApplyError struct {
+	Output string
+}
+
+func (e *ApplyError) Error() string { return "patch does not apply: " + e.Output }
+
+// ChangedFiles lists every path in the worktree at dir that differs from
+// its commit: modified, added, deleted, renamed (both names), untracked and
+// ignored files alike.
+func ChangedFiles(ctx context.Context, dir string) ([]string, error) {
+	out, err := run(ctx, dir, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored")
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	entries := strings.Split(out, "\x00")
+	for i := 0; i < len(entries); i++ {
+		e := entries[i]
+		if len(e) < 4 {
+			continue
+		}
+		paths = append(paths, strings.TrimSuffix(e[3:], "/"))
+		// A rename or copy is followed by the path it came from.
+		if (e[0] == 'R' || e[0] == 'C' || e[1] == 'R' || e[1] == 'C') && i+1 < len(entries) {
+			i++
+			paths = append(paths, entries[i])
+		}
+	}
+	return paths, nil
+}
+
+// WorktreeDiff returns everything that differs from the commit in the
+// worktree at dir, as one patch. Unlike the patch that was applied, it is
+// what git itself says changed.
+func WorktreeDiff(ctx context.Context, dir string) (string, error) {
+	if _, err := run(ctx, dir, "add", "--all", "--force"); err != nil {
+		return "", err
+	}
+	diff, err := run(ctx, dir, "diff", "--cached", "--no-color", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return diff + "\n", nil
 }

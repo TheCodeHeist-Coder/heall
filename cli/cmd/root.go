@@ -68,8 +68,8 @@ func init() {
 		stub("heal", "Ask the agent for a fix and verify it against the guardrails", 6, false),
 		stub("pr", "Open a draft pull request with the patch and evidence", 7, false),
 		// Called by the Python agent, not by people.
-		stub("_runtest", "Run a test in the sandbox and print the result as JSON", 5, true),
-		stub("_verify", "Check a patch against the guardrails and tests and print the result as JSON", 5, true),
+		newRunTestCmd(),
+		newVerifyCmd(),
 	)
 }
 

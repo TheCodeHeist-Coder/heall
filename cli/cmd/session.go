@@ -117,7 +117,7 @@ func (s *session) close() {
 }
 
 func (s *session) tester() tester.Tester {
-	return tester.Tester{Cfg: s.cfg, Runner: s.runner}
+	return tester.Tester{Cfg: s.cfg}
 }
 
 // stage wraps fn in stage_started and stage_done events. An Escalation from

@@ -11,7 +11,7 @@ import (
 	"heall/internal/sandbox"
 )
 
-// script is a Runner that answers each command from a table keyed by the
+// script is a Box that answers each command from a table keyed by the
 // command's first word.
 type script struct {
 	results map[string]sandbox.Result
@@ -19,10 +19,8 @@ type script struct {
 	calls   []string
 }
 
-func (s *script) Name() string                  { return "script" }
-func (s *script) Prepare(context.Context) error { return nil }
-func (s *script) Close() error                  { return nil }
-func (s *script) Run(_ context.Context, _ string, argv []string) (sandbox.Result, error) {
+func (s *script) Close() error { return nil }
+func (s *script) Run(_ context.Context, argv []string) (sandbox.Result, error) {
 	s.calls = append(s.calls, strings.Join(argv, " "))
 	return s.results[argv[0]], s.err
 }
@@ -61,7 +59,7 @@ func TestCheck(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			r := &script{results: tc.results}
-			out, err := Tester{Cfg: cfg, Runner: r}.Check(context.Background(), "/commit", tc.test)
+			out, err := Tester{Cfg: cfg}.Check(context.Background(), r, tc.test)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,7 +75,7 @@ func TestCheck(t *testing.T) {
 
 func TestCheckWithoutBuildStep(t *testing.T) {
 	r := &script{results: map[string]sandbox.Result{"suite": {}}}
-	out, err := Tester{Cfg: config.Config{TestCmd: []string{"suite"}}, Runner: r}.Check(context.Background(), "/commit", "")
+	out, err := Tester{Cfg: config.Config{TestCmd: []string{"suite"}}}.Check(context.Background(), r, "")
 	if err != nil || out.Verdict != events.Pass || len(r.calls) != 1 {
 		t.Errorf("verdict=%s err=%v calls=%q, want one passing suite run", out.Verdict, err, r.calls)
 	}
@@ -85,7 +83,7 @@ func TestCheckWithoutBuildStep(t *testing.T) {
 
 func TestCheckPassesSandboxErrorsThrough(t *testing.T) {
 	boom := errors.New("docker is gone")
-	_, err := Tester{Cfg: config.Config{TestCmd: []string{"suite"}}, Runner: &script{err: boom}}.Check(context.Background(), "/commit", "")
+	_, err := Tester{Cfg: config.Config{TestCmd: []string{"suite"}}}.Check(context.Background(), &script{err: boom}, "")
 	if !errors.Is(err, boom) {
 		t.Errorf("got %v: a sandbox failure must not be turned into a verdict", err)
 	}

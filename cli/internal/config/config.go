@@ -29,6 +29,11 @@ type Sandbox struct {
 	Mode           string `yaml:"mode"`
 	Image          string `yaml:"image"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	// FreshPerRun starts a new container for every command while bisecting
+	// and reproducing, instead of reusing one per worker. It is slower and
+	// only needed when commits in the range cannot be trusted to leave the
+	// container alone. Patches from the agent always get a new container.
+	FreshPerRun bool `yaml:"fresh_per_run"`
 }
 
 type Locate struct {
@@ -56,11 +61,15 @@ type Config struct {
 	// Allow lists the globs a patch may touch.
 	Allow []string `yaml:"allow"`
 	// Protect lists globs a patch may never touch, even if allowed.
-	Protect   []string  `yaml:"protect"`
-	Sandbox   Sandbox   `yaml:"sandbox"`
-	Locate    Locate    `yaml:"locate"`
-	Reproduce Reproduce `yaml:"reproduce"`
-	Heal      Heal      `yaml:"heal"`
+	Protect []string `yaml:"protect"`
+	// ForbidAdded lists regular expressions that no line added by a patch may
+	// match: code that could make a test pass without fixing the problem,
+	// such as detecting the test runner.
+	ForbidAdded []string  `yaml:"forbid_added"`
+	Sandbox     Sandbox   `yaml:"sandbox"`
+	Locate      Locate    `yaml:"locate"`
+	Reproduce   Reproduce `yaml:"reproduce"`
+	Heal        Heal      `yaml:"heal"`
 }
 
 func Default() Config {
@@ -122,6 +131,11 @@ func (c Config) Validate() error {
 	}
 	if len(c.Allow) == 0 {
 		errs = append(errs, errors.New("allow must list at least one path"))
+	}
+	for _, pattern := range c.ForbidAdded {
+		if _, err := regexp.Compile(pattern); err != nil {
+			errs = append(errs, fmt.Errorf("forbid_added: %w", err))
+		}
 	}
 	if c.Sandbox.Mode != "docker" && c.Sandbox.Mode != "local" {
 		errs = append(errs, fmt.Errorf("sandbox.mode must be docker or local, got %q", c.Sandbox.Mode))

@@ -102,6 +102,13 @@ protect:
   - "package.json"
   - ".heall.yaml"
 
+# No line a patch adds may match these: code that could make a test pass
+# without fixing anything, by noticing it is being tested or by quitting.
+forbid_added:
+  - "NODE_TEST_CONTEXT"
+  - "process\\\\.exit\\\\("
+  - "\\\\.stack\\\\b"
+
 sandbox:
   mode: docker
   image: node:24-alpine

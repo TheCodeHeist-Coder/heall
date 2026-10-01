@@ -4,6 +4,7 @@
   "repo_dir": "/tmp/demo-repo",
   "worktree": "/tmp/heall-worktrees/r-demo-bad",
   "heall_bin": "/usr/local/bin/heall",
+  "config_path": "",
   "good": "a1b2c3d",
   "bad": "f9e8d7c",
   "failure": {

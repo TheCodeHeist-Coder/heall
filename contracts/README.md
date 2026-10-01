@@ -104,14 +104,46 @@ which prints one JSON object on stdout:
 
 ```
 heall _runtest --request <HealRequest> [--test <name>]
-heall _verify  --request <HealRequest> --patch <diff file> --attempt <n>
+heall _verify  --request <HealRequest> --patch <diff file, or - for stdin>
 ```
 
-- `_runtest` runs the suite, or one test, at the bad commit in the sandbox.
-  Reply: `examples/runtest_result.json`.
-- `_verify` checks a patch against the guardrails, applies it to a fresh
-  worktree and runs the tests. Reply: `examples/verify_result.json`. The agent
+Both read the repository, the failing commit and the config from the request
+file the agent was started with.
+
+- `_runtest` runs the suite, or one test, on the bad commit as it is, with no
+  patch. Reply: `examples/runtest_result.json`.
+- `_verify` judges a patch. Reply: `examples/verify_result.json`. The agent
   reports the reply as `guardrail_checked` and `verify_done` events.
+
+What `_verify` does, in order:
+
+1. Counts the attempt. The count is kept by the CLI per `run_id`; once it
+   passes `max_attempts` every further patch is `rejected`.
+2. Checks the patch text against the guardrails (below). A failure here is
+   `rejected` and the patch is never applied.
+3. Applies the patch to a fresh checkout of the bad commit. If it does not
+   apply: `failed`.
+4. Lists the files that really changed and checks those paths again. This is
+   the check that counts: it does not depend on heall reading the patch the
+   same way git did.
+5. Builds, runs the target test, then the full suite, each in a brand-new
+   container. `verified` needs the target test to pass and no test to fail
+   that was not already failing on the bad commit.
+
+`output` in the reply tells the agent what went wrong: the guardrail that
+blocked it, git's apply error, or the failing tests' output.
+
+Guardrail checks, reported by name in `guardrails`:
+
+| Name | Fails when |
+|---|---|
+| `well_formed` | The patch cannot be read, changes no file, or names a path outside the repository |
+| `protected_paths` | It touches a path matching `protect` (for example a test file) |
+| `allowlist` | It touches a path that matches nothing in `allow` |
+| `file_types` | It adds a binary file, a symbolic link or a submodule |
+| `forbidden_code` | An added line matches a pattern in `forbid_added` |
+| `attempt_limit` | The run has used up `max_attempts` |
+| `applied_changes` | After applying, a changed file is protected or outside `allow` |
 
 Two rules keep the trust layer out of the agent's hands:
 
@@ -142,3 +174,9 @@ has no knowledge of the repository's language.
   `{{test_re}}` by the name escaped for use in a regular expression.
 - A patch may touch only paths matching `allow`, and never a path matching
   `protect`, even if it is also allowed.
+- `forbid_added` lists regular expressions that no line added by a patch may
+  match, such as code that detects the test runner.
+- `sandbox.fresh_per_run: true` starts a new container for every command
+  while reproducing and bisecting. By default one container per worker is
+  reused there, which is several times faster. Patches from the agent are
+  always run in a new container, whatever this is set to.

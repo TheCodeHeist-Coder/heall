@@ -11,8 +11,7 @@ import (
 )
 
 type Tester struct {
-	Cfg    config.Config
-	Runner sandbox.Runner
+	Cfg config.Config
 }
 
 type Outcome struct {
@@ -22,12 +21,13 @@ type Outcome struct {
 	Result sandbox.Result
 }
 
-// Check builds the commit in dir and runs the test called name, or the whole
-// suite when name is empty. A commit that does not build, or whose build or
-// test times out, is Skipped: it says nothing about where the failure began.
-func (t Tester) Check(ctx context.Context, dir, name string) (Outcome, error) {
+// Check builds the commit that box is bound to and runs the test called
+// name, or the whole suite when name is empty. A commit that does not build,
+// or whose build or test times out, is Skipped: it says nothing about where
+// the failure began.
+func (t Tester) Check(ctx context.Context, box sandbox.Box, name string) (Outcome, error) {
 	if len(t.Cfg.BuildCmd) > 0 {
-		res, err := t.Runner.Run(ctx, dir, t.Cfg.BuildCmd)
+		res, err := box.Run(ctx, t.Cfg.BuildCmd)
 		if err != nil {
 			return Outcome{}, err
 		}
@@ -40,7 +40,7 @@ func (t Tester) Check(ctx context.Context, dir, name string) (Outcome, error) {
 	if name != "" {
 		argv = t.Cfg.TestOne(name)
 	}
-	res, err := t.Runner.Run(ctx, dir, argv)
+	res, err := box.Run(ctx, argv)
 	if err != nil {
 		return Outcome{}, err
 	}

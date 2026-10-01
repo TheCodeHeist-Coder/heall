@@ -55,7 +55,7 @@ then stops with exit code 3 and explains why, instead of blaming a commit.`,
 			s.printer.SetEnds(goodSHA, badSHA)
 
 			n := min(s.cfg.Locate.Workers, s.cfg.Reproduce.Runs+1)
-			pool, err := workspace.New(s.repo, s.tester(), test, n)
+			pool, err := workspace.New(s.repo, s.runner, s.tester(), test, n)
 			if err != nil {
 				return err
 			}
@@ -64,6 +64,8 @@ then stops with exit code 3 and explains why, instead of blaming a commit.`,
 					fmt.Fprintf(cmd.ErrOrStderr(), "warning: worktree cleanup: %v\n", err)
 				}
 			}()
+
+			go pool.Warm(ctx, badSHA)
 
 			var res reproduce.Result
 			err = s.stage(events.StageReproduce, func() error {

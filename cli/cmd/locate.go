@@ -57,7 +57,7 @@ do not build are skipped and the search routes around them.`,
 				return err
 			}
 
-			pool, err := workspace.New(s.repo, s.tester(), test, s.cfg.Locate.Workers)
+			pool, err := workspace.New(s.repo, s.runner, s.tester(), test, s.cfg.Locate.Workers)
 			if err != nil {
 				return err
 			}
@@ -66,6 +66,9 @@ do not build are skipped and the search routes around them.`,
 					fmt.Fprintf(cmd.ErrOrStderr(), "warning: worktree cleanup: %v\n", err)
 				}
 			}()
+
+			// Start every worker's sandbox while the first commits are tested.
+			go pool.Warm(ctx, badSHA)
 
 			var res locate.Result
 			err = s.stage(events.StageLocate, func() error {

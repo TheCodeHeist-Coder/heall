@@ -59,7 +59,7 @@ func TestLocateOnARealRepository(t *testing.T) {
 		TestOneCmd: []string{"sh", "-c", fmt.Sprintf(`touch "ran-{{test}}"; test "$(cat value)" -lt %d`, culprit)},
 	}
 	const workers = 5
-	trees, err := workspace.New(repo, tester.Tester{Cfg: cfg, Runner: &sandbox.Local{Timeout: 20 * time.Second}}, "value", workers)
+	trees, err := workspace.New(repo, &sandbox.Local{Timeout: 20 * time.Second}, tester.Tester{Cfg: cfg}, "value", workers)
 	if err != nil {
 		t.Fatal(err)
 	}

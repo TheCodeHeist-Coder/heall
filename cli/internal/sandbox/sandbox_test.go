@@ -217,3 +217,83 @@ func TestDockerPrepareExplainsMissingImage(t *testing.T) {
 		t.Errorf("got %v, want a pull error naming the image", err)
 	}
 }
+
+func TestDockerBoxReusesOneContainer(t *testing.T) {
+	d := dockerOrSkip(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	box := d.Open(dir)
+
+	if left := leftovers(t, d); left != "" {
+		t.Fatalf("Open started a container before it was needed: %s", left)
+	}
+	// /tmp is outside the mounted directory, so a file there survives only
+	// if the second command runs in the same container.
+	res, err := box.Run(ctx, []string{"sh", "-c", "touch /tmp/kept; pwd; id -u"})
+	if err != nil || res.ExitCode != 0 {
+		t.Fatalf("first command: exit=%d err=%v output=%q", res.ExitCode, err, res.Output)
+	}
+	if !strings.HasPrefix(res.Output, "/work\n") || strings.TrimSpace(strings.TrimPrefix(res.Output, "/work\n")) == "0" {
+		t.Errorf("commands should run in /work as the calling user, not root: %q", res.Output)
+	}
+	res, err = box.Run(ctx, []string{"sh", "-c", "test -e /tmp/kept; exit $?"})
+	if err != nil || res.ExitCode != 0 {
+		t.Errorf("the second command did not see the first one's container: exit=%d err=%v", res.ExitCode, err)
+	}
+	res, err = box.Run(ctx, []string{"sh", "-c", "exit 4"})
+	if err != nil || res.ExitCode != 4 {
+		t.Errorf("exit=%d err=%v, want the command's own exit code 4", res.ExitCode, err)
+	}
+	if n := len(strings.Split(leftovers(t, d), "\n")); n != 1 {
+		t.Errorf("%d containers running for one box, want 1", n)
+	}
+
+	// The same isolation as a fresh container.
+	res, err = box.Run(ctx, []string{"node", "-e",
+		`fetch("http://example.com").then(() => process.exit(0), () => process.exit(9))`})
+	if err != nil || res.ExitCode != 9 {
+		t.Errorf("exit=%d err=%v: the reused container reached the network", res.ExitCode, err)
+	}
+
+	if err := box.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if left := leftovers(t, d); left != "" {
+		t.Errorf("container left after the box was closed: %s", left)
+	}
+}
+
+func TestDockerBoxTimeoutDiscardsTheContainer(t *testing.T) {
+	d := dockerOrSkip(t)
+	d.Timeout = 1500 * time.Millisecond
+	ctx := context.Background()
+	box := d.Open(t.TempDir())
+	defer box.Close()
+
+	if _, err := box.Run(ctx, []string{"touch", "/tmp/before"}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := box.Run(ctx, []string{"sleep", "60"})
+	if err != nil || !res.TimedOut {
+		t.Fatalf("timedOut=%v err=%v, want a timeout", res.TimedOut, err)
+	}
+	// The hung command must not keep running next to the next commit's
+	// tests, so the box starts over with a new container.
+	res, err = box.Run(ctx, []string{"sh", "-c", "test ! -e /tmp/before && ! pgrep sleep 60"})
+	if err != nil || res.ExitCode != 0 {
+		t.Errorf("after a timeout the box reused the old container: exit=%d err=%v output=%q", res.ExitCode, err, res.Output)
+	}
+}
+
+func TestFreshBoxStartsOverEveryTime(t *testing.T) {
+	d := dockerOrSkip(t)
+	ctx := context.Background()
+	box := Fresh(d, t.TempDir())
+	if _, err := box.Run(ctx, []string{"touch", "/tmp/kept"}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := box.Run(ctx, []string{"test", "-e", "/tmp/kept"})
+	if err != nil || res.ExitCode == 0 {
+		t.Errorf("exit=%d err=%v: a fresh box kept state between commands", res.ExitCode, err)
+	}
+}

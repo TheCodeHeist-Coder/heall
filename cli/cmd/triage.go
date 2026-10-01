@@ -110,7 +110,7 @@ func (s *session) runSuite(cmd *cobra.Command, sha string) (string, error) {
 	if err := s.runner.Prepare(ctx); err != nil {
 		return "", err
 	}
-	pool, err := workspace.New(s.repo, s.tester(), "", 1)
+	pool, err := workspace.New(s.repo, s.runner, s.tester(), "", 1)
 	if err != nil {
 		return "", err
 	}

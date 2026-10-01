@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -37,10 +38,40 @@ type Runner interface {
 	// Prepare does one-off setup, such as pulling the image.
 	Prepare(ctx context.Context) error
 	Run(ctx context.Context, dir string, argv []string) (Result, error)
+	// Open returns a Box that keeps one sandbox alive for dir across many
+	// commands. Nothing is started until the box is first used.
+	Open(dir string) Box
 	// Close removes anything the runner left behind. Call it once, after
 	// the last Run has returned.
 	Close() error
 }
+
+// Box runs commands against one directory. Commands in a box run one at a
+// time.
+//
+// A box from Runner.Open reuses its sandbox, which saves the cost of
+// starting one per command but lets a command see what an earlier one left
+// outside the directory. That is fine for bisecting a repository's own
+// history. Code that has not been reviewed, such as a patch from the agent,
+// must run in a box from Fresh instead.
+type Box interface {
+	Run(ctx context.Context, argv []string) (Result, error)
+	Close() error
+}
+
+// Fresh returns a Box that runs every command in a brand-new sandbox.
+func Fresh(r Runner, dir string) Box { return freshBox{r, dir} }
+
+type freshBox struct {
+	runner Runner
+	dir    string
+}
+
+func (b freshBox) Run(ctx context.Context, argv []string) (Result, error) {
+	return b.runner.Run(ctx, b.dir, argv)
+}
+
+func (b freshBox) Close() error { return nil }
 
 func New(cfg config.Sandbox) (Runner, error) {
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
@@ -102,6 +133,9 @@ func (l *Local) Name() string { return "local" }
 func (l *Local) Prepare(context.Context) error { return nil }
 
 func (l *Local) Close() error { return nil }
+
+// Open has nothing to keep alive for local runs.
+func (l *Local) Open(dir string) Box { return Fresh(l, dir) }
 
 func (l *Local) Run(ctx context.Context, dir string, argv []string) (Result, error) {
 	if len(argv) == 0 {
@@ -174,8 +208,31 @@ func (d *Docker) Run(ctx context.Context, dir string, argv []string) (Result, er
 		return Result{}, errors.New("empty command")
 	}
 	name := "heall-" + randomHex(6)
+	args := append(d.runArgs(name, dir, "--rm"), d.Image)
+	args = append(args, argv...)
+
+	res, err := execute(ctx, d.Timeout, func(ctx context.Context) *exec.Cmd {
+		return exec.CommandContext(ctx, "docker", args...)
+	}, func() {
+		// Killing the docker client leaves the container running.
+		remove(name)
+	})
+	if err != nil {
+		return res, err
+	}
+	// 125 is docker's own failure, not the command's.
+	if res.ExitCode == 125 {
+		return res, fmt.Errorf("docker run failed: %s", strings.TrimSpace(res.Output))
+	}
+	return res, nil
+}
+
+// runArgs is "docker run" with the isolation every heall container gets:
+// no network, no capabilities, limited memory and processes, and only dir
+// mounted.
+func (d *Docker) runArgs(name, dir string, extra ...string) []string {
 	args := []string{
-		"run", "--rm", "--name", name,
+		"run", "--name", name,
 		"--label", sessionLabel + "=" + d.session,
 		"--network", "none",
 		"--cap-drop", "ALL",
@@ -187,26 +244,86 @@ func (d *Docker) Run(ctx context.Context, dir string, argv []string) (Result, er
 		"--env", "HOME=/tmp",
 		"--volume", dir + ":/work",
 		"--workdir", "/work",
-		d.Image,
 	}
-	args = append(args, argv...)
+	return append(args, extra...)
+}
 
-	res, err := execute(ctx, d.Timeout, func(ctx context.Context) *exec.Cmd {
-		return exec.CommandContext(ctx, "docker", args...)
-	}, func() {
-		// Killing the docker client leaves the container running.
-		stop, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		_ = exec.CommandContext(stop, "docker", "rm", "--force", name).Run()
-	})
+func remove(name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_ = exec.CommandContext(ctx, "docker", "rm", "--force", name).Run()
+}
+
+func (d *Docker) Open(dir string) Box { return &dockerBox{docker: d, dir: dir} }
+
+// dockerBox keeps one container running and sends each command to it with
+// "docker exec", which is several times cheaper than starting a container.
+type dockerBox struct {
+	docker *Docker
+	dir    string
+	mu     sync.Mutex
+	// name is the running container, or empty when there is none.
+	name string
+}
+
+func (b *dockerBox) start(ctx context.Context) error {
+	name := "heall-" + randomHex(6)
+	// --init gives the container a real init, so "docker rm" stops it at
+	// once and processes orphaned by a test are reaped.
+	args := append(b.docker.runArgs(name, b.dir, "--rm", "--detach", "--init"), b.docker.Image, "sleep", "2147483647")
+	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+	if err != nil {
+		remove(name)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("start sandbox container: %s", firstLine(out, err))
+	}
+	b.name = name
+	return nil
+}
+
+func (b *dockerBox) Run(ctx context.Context, argv []string) (Result, error) {
+	if len(argv) == 0 {
+		return Result{}, errors.New("empty command")
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.name == "" {
+		if err := b.start(ctx); err != nil {
+			return Result{}, err
+		}
+	}
+	name := b.name
+	// A command that is cut short keeps running inside the container, so the
+	// container goes with it; the next command starts a new one.
+	discard := func() {
+		remove(name)
+		b.name = ""
+	}
+	res, err := execute(ctx, b.docker.Timeout, func(ctx context.Context) *exec.Cmd {
+		return exec.CommandContext(ctx, "docker", append([]string{"exec", name}, argv...)...)
+	}, discard)
 	if err != nil {
 		return res, err
 	}
-	// 125 is docker's own failure, not the command's.
-	if res.ExitCode == 125 {
-		return res, fmt.Errorf("docker run failed: %s", strings.TrimSpace(res.Output))
+	// The container itself is gone or broken: docker's failure, not the
+	// command's.
+	if res.ExitCode != 0 && strings.HasPrefix(res.Output, "Error response from daemon:") {
+		discard()
+		return res, fmt.Errorf("docker exec failed: %s", strings.TrimSpace(res.Output))
 	}
 	return res, nil
+}
+
+func (b *dockerBox) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.name != "" {
+		remove(b.name)
+		b.name = ""
+	}
+	return nil
 }
 
 func firstLine(out []byte, err error) string {

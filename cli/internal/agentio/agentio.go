@@ -29,7 +29,9 @@ type HealRequest struct {
 	// made here are ignored; changes only count when sent through _verify.
 	Worktree string `json:"worktree"`
 	// HeallBin is the CLI binary the agent calls back for _runtest and _verify.
-	HeallBin       string   `json:"heall_bin"`
+	HeallBin string `json:"heall_bin"`
+	// ConfigPath is the .heall.yaml in use; empty means the one in RepoDir.
+	ConfigPath     string   `json:"config_path"`
 	Good           string   `json:"good"`
 	Bad            string   `json:"bad"`
 	Failure        Failure  `json:"failure"`
