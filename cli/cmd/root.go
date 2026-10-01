@@ -69,6 +69,7 @@ func init() {
 		newLocateCmd(),
 		newHealCmd(),
 		newPRCmd(),
+		newServeCmd(),
 		// Called by the Python agent, not by people.
 		newRunTestCmd(),
 		newVerifyCmd(),

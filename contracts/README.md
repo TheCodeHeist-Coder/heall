@@ -192,7 +192,20 @@ and opened as a draft pull request with `gh`; a diagnosis is also posted as a
 comment on the failing commit. If GitHub cannot be reached the files are still
 written, a `log` event says why, and the run's outcome does not change.
 
-## 6. Repo config
+## 6. Dashboard API
+
+`heall serve` listens on this machine only (port 7777 by default) and serves
+the built dashboard plus two read-only endpoints over the run directories:
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/runs` | The recorded runs, newest first: `id, started, branch, bad, test, outcome, events`. `outcome` is empty while a run is in progress. |
+| `GET /api/runs/<id>/events` | The run's events as server-sent events, one `data:` line per event with `id:` set to its `seq`. Events already written arrive at once; the stream then follows the file and ends with an `end` event after `run_done`. A reconnect with `Last-Event-ID` gets only what it missed. |
+
+The server never talks to a run. It reads `events.jsonl`, so a live run and a
+finished one are served the same way and a run needs no flag to be watchable.
+
+## 7. Repo config
 
 Each repository being healed has a `.heall.yaml` (`examples/heall.yaml`). It
 holds the build and test commands and the allow and protect lists, so the CLI
