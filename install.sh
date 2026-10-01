@@ -36,12 +36,23 @@ else
 fi
 
 if command -v curl >/dev/null 2>&1; then
-  fetch() { curl -fsSL "$1" -o "$2"; }
+  once() { curl -fsSL "$1" -o "$2"; }
 elif command -v wget >/dev/null 2>&1; then
-  fetch() { wget -q "$1" -O "$2"; }
+  once() { wget -q "$1" -O "$2"; }
 else
   die "curl or wget is needed to download heall"
 fi
+
+# A name lookup or a connection can fail for a moment; try a few times
+# before giving up.
+fetch() {
+  for attempt in 1 2 3; do
+    if once "$1" "$2" 2>"$tmp/error"; then return 0; fi
+    [ "$attempt" -lt 3 ] && sleep 2
+  done
+  cat "$tmp/error" >&2
+  return 1
+}
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

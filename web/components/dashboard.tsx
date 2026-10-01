@@ -19,6 +19,7 @@ import {
 
 import { AgentTimeline } from "./agent-timeline";
 import { CommitGrid, Narrowing, TestedTable } from "./commit-grid";
+import { GetStarted } from "./get-started";
 import { Mark, Panel, seconds, short, VERDICT } from "./status";
 
 const STAGE_LABEL: Record<Stage, string> = {
@@ -66,6 +67,11 @@ export function Dashboard() {
     else delete document.documentElement.dataset.theme;
   }, [forced]);
 
+  // The guide opens by itself where there are no runs of your own to show:
+  // on the public site. Next to a local heall it stays behind its button.
+  const [guide, setGuide] = useState<boolean | null>(null);
+  const showGuide = guide ?? online === false;
+
   const { events, live, error } = useEvents(source);
   const at = Number.parseInt(query.get("at") ?? "", 10);
   const playback = usePlayback(events, sourceKey(source), Number.isFinite(at) && !unlinked ? at : null);
@@ -81,18 +87,29 @@ export function Dashboard() {
         onPick={pick}
         theme={forced}
         onTheme={setTheme}
+        guide={showGuide}
+        onGuide={() => setGuide(!showGuide)}
         live={live}
         state={state}
         playback={playback}
         total={events.length}
       />
       {error && <p className="rounded-md bg-bad-wash px-3 py-2 text-sm">{error}</p>}
+      {showGuide && <GetStarted onClose={() => setGuide(false)} />}
+      {showGuide && online === false && (
+        <div className="mt-2">
+          <h2 className="text-xl font-semibold tracking-tight">See it work</h2>
+          <p className="mt-1 text-sm text-ink-2">
+            This is a recording of a real run. Press Replay to watch it happen, or pick another sample from the list.
+          </p>
+        </div>
+      )}
       <StageRail state={state} />
 
       {events.length === 0 ? (
         <p className="py-20 text-center text-sm text-muted">{live ? "Waiting for the run to start…" : "Loading…"}</p>
       ) : (
-        <div className="grid flex-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid flex-1 grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="space-y-4">
             <Failure state={state} />
             <Locate state={state} />
@@ -127,6 +144,8 @@ function Header(props: {
   onPick: (s: Source | null) => void;
   theme: "dark" | "light" | null;
   onTheme: (t: "dark" | "light") => void;
+  guide: boolean;
+  onGuide: () => void;
   live: boolean;
   state: RunState;
   playback: Playback;
@@ -183,6 +202,15 @@ function Header(props: {
         Open events file
       </button>
       <input ref={file} type="file" accept=".jsonl,.json,.txt" className="hidden" onChange={(e) => open(e.target.files?.[0])} />
+
+      <button
+        type="button"
+        onClick={props.onGuide}
+        aria-pressed={props.guide}
+        className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm hover:bg-raised"
+      >
+        How to use
+      </button>
 
       <RunStatus live={live} state={state} replaying={playback.replaying} />
       <span className="flex-1" />
@@ -271,7 +299,7 @@ const STAGE_GLYPH: Record<StageStatus, string> = { pending: "", running: "…", 
 
 function StageRail({ state }: { state: RunState }) {
   return (
-    <ol className="grid grid-cols-5 gap-2">
+    <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
       {STAGES.map((stage, i) => {
         const s = state.stages[stage];
         const tone = STAGE_TONE[s.status];
