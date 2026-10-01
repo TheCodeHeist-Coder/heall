@@ -157,6 +157,25 @@ class GroqChatTest(unittest.TestCase):
             with self.assertRaises(llm.RequestTooLarge):
                 chat.chat([], [])
 
+    def test_reasoning_effort_is_sent_and_dropped_if_refused(self):
+        refused = http_error(400, "invalid_request_error", "reasoning_effort is not supported with this model")
+        server = Server(refused, ok("fine"), ok("again"))
+        chat, _ = client(server, reasoning_effort="low")
+        self.assertEqual(chat.chat([], [])["content"], "fine")
+        chat.chat([], [])
+        sent = [json.loads(r.data).get("reasoning_effort") for r in server.requests]
+        self.assertEqual(sent, ["low", None, None])
+
+    def test_usage_and_waits_are_counted(self):
+        limited = http_error(429, "rate_limit_exceeded", "Please try again in 4s")
+        reply = Reply({"choices": [{"message": {"content": "x"}}], "usage": {"prompt_tokens": 900, "completion_tokens": 50}})
+        waits = []
+        chat, _ = client(Server(limited, reply), keys=("k1",), on_wait=waits.append)
+        chat.chat([], [])
+        self.assertEqual(waits, [4.5])
+        self.assertEqual(llm.usage_summary(chat), "model usage: 1 calls, 900 tokens in, 50 out, 4s spent waiting for the rate limit")
+        self.assertIsNone(llm.usage_summary(llm.ReplayChat(os.devnull)))
+
     def test_needs_a_key(self):
         with self.assertRaisesRegex(llm.LLMError, "GROQ_API_KEY"):
             llm.GroqChat([], "m")

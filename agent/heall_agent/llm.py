@@ -90,6 +90,8 @@ class GroqChat:
         base_url: str = GROQ_BASE_URL,
         timeout: float = 120,
         max_wait: float = 180,
+        reasoning_effort: str | None = None,
+        on_wait: Callable[[float], None] | None = None,
         opener: Callable[..., Any] = urllib.request.urlopen,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
@@ -101,6 +103,14 @@ class GroqChat:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._max_wait = max_wait
+        # Reasoning models think at length by default. That costs time and
+        # counts against the tokens-per-minute limit, so ask for less.
+        self._reasoning_effort = reasoning_effort
+        self._on_wait = on_wait
+        self.calls = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.waited = 0.0
         self._opener = opener
         self._sleep = sleep
         self._clock = clock
@@ -146,8 +156,10 @@ class GroqChat:
             "model": self.name,
             "messages": messages,
             "temperature": 0,
-            "max_completion_tokens": 4096,
+            "max_completion_tokens": 2048,
         }
+        if self._reasoning_effort:
+            body["reasoning_effort"] = self._reasoning_effort
         if tools:
             body["tools"] = tools
             body["tool_choice"] = tool_choice
@@ -162,8 +174,11 @@ class GroqChat:
             if key is None:
                 if waited + wait > self._max_wait:
                     raise LLMError(f"all Groq API keys are rate limited; next reset in {wait:.0f}s")
+                if self._on_wait:
+                    self._on_wait(wait)
                 self._sleep(wait)
                 waited += wait
+                self.waited += wait
                 continue
             try:
                 data = self._request(key, "/chat/completions", body)
@@ -180,6 +195,11 @@ class GroqChat:
                     continue
                 if status == 413 or code == "context_length_exceeded" or "too large" in message.lower():
                     raise RequestTooLarge(message) from e
+                if status == 400 and "reasoning_effort" in body and "reasoning" in message.lower():
+                    # This model does not take the setting; go on without it.
+                    del body["reasoning_effort"]
+                    self._reasoning_effort = None
+                    continue
                 if status == 400 and code == "tool_use_failed" and malformed < 2:
                     # The model wrote a tool call that could not be parsed.
                     # Trying again nearly always gives a valid one.
@@ -201,10 +221,26 @@ class GroqChat:
                     continue
                 raise LLMError(f"cannot reach the Groq API: {e}") from e
 
+            self.calls += 1
+            usage = data.get("usage") or {}
+            self.prompt_tokens += int(usage.get("prompt_tokens") or 0)
+            self.completion_tokens += int(usage.get("completion_tokens") or 0)
             try:
                 return _clean(data["choices"][0]["message"])
             except (KeyError, IndexError, TypeError) as e:
                 raise LLMError(f"unexpected reply from the Groq API: {str(data)[:300]}") from e
+
+
+def usage_summary(model: ChatModel) -> str | None:
+    """One line on what a run cost, for models that keep count."""
+    model = getattr(model, "inner", model)
+    calls = getattr(model, "calls", 0)
+    if not calls:
+        return None
+    text = f"model usage: {calls} calls, {model.prompt_tokens} tokens in, {model.completion_tokens} out"
+    if model.waited >= 1:
+        text += f", {model.waited:.0f}s spent waiting for the rate limit"
+    return text
 
 
 def _error_body(e: urllib.error.HTTPError) -> dict:
@@ -257,6 +293,7 @@ class RecordingChat:
 
     def __init__(self, inner: ChatModel, path: str) -> None:
         self.name = inner.name
+        self.inner = inner
         self._inner = inner
         self._path = path
         open(path, "w", encoding="utf-8").close()

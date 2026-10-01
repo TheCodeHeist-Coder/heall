@@ -43,6 +43,8 @@ func New(w io.Writer) *Printer {
 	return &Printer{w: w, color: color, index: map[string]int{}, calls: map[string]string{}}
 }
 
+const maxThoughtLines = 4
+
 const (
 	green  = "32"
 	red    = "31"
@@ -156,7 +158,13 @@ func (p *Printer) Handle(ev events.Event) {
 	case *events.AgentStarted:
 		fmt.Fprintf(p.w, "%s agent on %s, up to %d patch attempts\n", p.paint(bold, "heal"), d.Model, d.MaxAttempts)
 	case *events.AgentThought:
-		for _, line := range wrap(d.Text, 96) {
+		// The terminal shows the start of a thought; the event stream and
+		// the dashboard have all of it.
+		lines := wrap(d.Text, 96)
+		if len(lines) > maxThoughtLines {
+			lines = append(lines[:maxThoughtLines], "…")
+		}
+		for _, line := range lines {
 			fmt.Fprintf(p.w, "  %s\n", p.paint(gray, "│ "+line))
 		}
 	case *events.ToolCall:

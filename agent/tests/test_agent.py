@@ -5,6 +5,7 @@ import pathlib
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 
 from heall_agent import agent, tools
 from heall_agent.contracts import (
@@ -147,11 +148,16 @@ class AgentTest(unittest.TestCase):
         # The model is given what it needs up front, and sees tool output.
         first = model.seen[0]["messages"]
         self.assertIn("src/**", first[0]["content"])
-        for want in ("paginate returns a full page", "Ravi", "Body.", "Files worth reading first: src/paginate.js", "3 patch attempt"):
+        for want in ("paginate returns a full page", "Ravi", "Body.", "3 patch attempt"):
             self.assertIn(want, first[1]["content"])
+        # The failing test's file and the suspect file come with the first
+        # message, each line with its exact indentation after the bar.
+        self.assertIn("The failing test's file test/paginate.test.js:\n1|import { test }", first[1]["content"])
+        self.assertIn("File src/paginate.js:\n1|export function bounds", first[1]["content"])
+        self.assertIn("\n8|  return items.slice(start, end);\n", first[1]["content"])
         read = model.seen[1]["messages"][-1]
         self.assertEqual(read["role"], "tool")
-        self.assertIn("8    return items.slice(start, end);", read["content"])
+        self.assertIn("\n8|  return items.slice(start, end);", read["content"])
         self.assertIn("src/paginate.js:7:", model.seen[2]["messages"][-1]["content"])
 
     def test_learns_from_a_failed_attempt(self):
@@ -206,6 +212,57 @@ class AgentTest(unittest.TestCase):
         self.assertIn("no patch attempts left", model.seen[2]["messages"][-1]["content"])
         self.assertEqual(self.backend.attempts, 2)
 
+    def test_edits_survive_wrong_indentation_and_copied_line_numbers(self):
+        # What the first live run got wrong three times in a row.
+        for old, new in (
+            ("    return items.slice(start, end);", "    return items.slice(start, end + 1);"),
+            ("return items.slice(start, end);", "return items.slice(start, end + 1);"),
+            ("8|  return items.slice(start, end);", "8|  return items.slice(start, end + 1);"),
+            ("\treturn items.slice(start, end);\n", "\treturn items.slice(start, end + 1);\n"),
+        ):
+            with self.subTest(old):
+                ws = tools.Workspace(self.tmp.name)
+                diff = tools.build_diff(ws, [tools.Edit("src/paginate.js", old, new)])
+                self.assertIn("-  return items.slice(start, end);\n+  return items.slice(start, end + 1);\n", diff)
+
+        # A block is re-indented as a whole, keeping its inner structure.
+        ws = tools.Workspace(self.tmp.name)
+        diff = tools.build_diff(ws, [tools.Edit(
+            "src/paginate.js",
+            "const { start, end } = bounds(page, size);\nreturn items.slice(start, end);",
+            "const { start, end } = bounds(page, size);\nif (end < start) {\n  return [];\n}\nreturn items.slice(start, end + 1);",
+        )])
+        self.assertIn("+  if (end < start) {\n+    return [];\n+  }\n+  return items.slice(start, end + 1);\n", diff)
+
+        # Still refused when it is not clear which place is meant.
+        with self.assertRaisesRegex(tools.ToolError, "matches 2 places"):
+            tools.replace_once("f", "  a();\n    a();\n", "\ta();", "b();")
+        with self.assertRaisesRegex(tools.ToolError, "not found, even ignoring indentation"):
+            tools.replace_once("f", "  a();\n", "c();", "b();")
+
+    def test_search_takes_code_as_it_is_written(self):
+        ws = tools.Workspace(self.tmp.name)
+        text, summary = tools.search(ws, "paginate(")
+        self.assertEqual(summary, "1 matches")
+        self.assertIn("searched as plain text", text)
+        self.assertIn("src/paginate.js:6: export function paginate(items, page, size) {", text)
+        self.assertNotIn("plain text", tools.search(ws, r"bounds\(")[0])
+
+    def test_conversation_is_kept_under_the_token_budget(self):
+        root = pathlib.Path(self.tmp.name)
+        (root / "src/big.js").write_text("".join(f"export const value{n} = {n}; // padding padding padding\n" for n in range(150)))
+        reads = [says("", call("read_file", path="src/big.js", start_line=1 + 10 * n)) for n in range(6)]
+        model = Script(*reads, says("", call("submit_patch", **self.RIGHT)))
+        with unittest.mock.patch.object(agent, "CONTEXT_TOKENS", 3000):
+            self.assertEqual(self.run_agent(model).outcome, "fixed")
+        last = model.seen[-1]["messages"]
+        self.assertLess(agent._tokens(last), 3000 + 2500, "only the latest result may push it over")
+        results = [m["content"] for m in last if m["role"] == "tool"]
+        self.assertTrue(results[0].endswith(agent.DROPPED))
+        self.assertFalse(results[-1].endswith(agent.DROPPED), "the latest result is kept whole")
+        # The first message, with the preloaded files, is never dropped.
+        self.assertIn("8|  return items.slice(start, end);", last[1]["content"])
+
     def test_bad_edits_do_not_use_an_attempt(self):
         missing = dict(self.RIGHT, edits=[{"path": "src/paginate.js", "old_text": "items.slice(a, b)", "new_text": "x"}])
         twice = dict(self.RIGHT, edits=[{"path": "src/paginate.js", "old_text": "start", "new_text": "s"}])
@@ -240,6 +297,25 @@ class AgentTest(unittest.TestCase):
         self.assertIn("no tool called 'fly_away'", said[1])
         self.assertIn("does not exist", said[2])
         self.assertEqual(said[3], "Use a tool. Finish by calling submit_patch or escalate.")
+
+    def test_arguments_written_as_the_answer_count_as_the_call(self):
+        # Seen in a live run: the model answered with escalate's arguments as
+        # JSON text, twice, instead of calling the tool.
+        answer = json.dumps({"reason": "tests disagree", "diagnosis": "Test A and test B cannot both pass."})
+        model = Script(says(answer))
+        result = self.run_agent(model)
+        self.assertEqual((result.outcome, result.reason, result.root_cause), ("escalated", "tests disagree", "Test A and test B cannot both pass."))
+        self.assertEqual(self.kinds(), ["agent_started", "tool_call", "tool_result"])
+
+        self.stream = io.StringIO()
+        model = Script(says("```json\n" + json.dumps(self.RIGHT) + "\n```"))
+        self.assertEqual(self.run_agent(model).outcome, "fixed")
+
+        # Other JSON, and prose that merely mentions a diagnosis, are not calls.
+        self.stream = io.StringIO()
+        model = Script(says('{"note": "thinking"}'), says("My diagnosis is unclear."), says("", call("escalate", reason="r", diagnosis="d")))
+        self.assertEqual(self.run_agent(model).outcome, "escalated")
+        self.assertEqual(len(model.seen), 3)
 
     def test_escalates_for_a_model_that_will_not_finish(self):
         result = self.run_agent(Script(says("Thinking."), says("Still thinking."), says("Hmm.")))

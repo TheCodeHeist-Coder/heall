@@ -7,6 +7,8 @@ a setup problem, explained on stderr.
 Environment:
   GROQ_API_KEY, GROQ_API_KEYS  one key, or several separated by commas
   HEALL_MODEL                  overrides the model named in the request
+  HEALL_REASONING_EFFORT       low (default), medium, high, or "default" to
+                               leave it to the model
   HEALL_LLM_RECORD=<file>      save the model's replies for a later replay
   HEALL_LLM_REPLAY=<file>      replay saved replies instead of calling Groq
 A .env file in the working directory or the project root is read too.
@@ -21,15 +23,21 @@ import sys
 from . import agent
 from .contracts import ContractError, load_request
 from .events import Emitter
-from .llm import ChatModel, GroqChat, LLMError, RecordingChat, ReplayChat, groq_keys, load_env_file
+from .llm import ChatModel, GroqChat, LLMError, RecordingChat, ReplayChat, groq_keys, load_env_file, usage_summary
 from .tools import BackendError, HeallBackend
 
 
-def choose_model(name: str) -> ChatModel:
+def choose_model(name: str, out: Emitter) -> ChatModel:
     name = os.environ.get("HEALL_MODEL") or name
     if replay := os.environ.get("HEALL_LLM_REPLAY"):
         return ReplayChat(replay, name)
-    model: ChatModel = GroqChat(groq_keys(), name)
+
+    def waiting(seconds: float) -> None:
+        if seconds >= 3:
+            out.emit("log", level="info", message=f"waiting {seconds:.0f}s for the Groq rate limit to reset")
+
+    effort = os.environ.get("HEALL_REASONING_EFFORT", "low")
+    model: ChatModel = GroqChat(groq_keys(), name, reasoning_effort=effort if effort != "default" else None, on_wait=waiting)
     if record := os.environ.get("HEALL_LLM_RECORD"):
         model = RecordingChat(model, record)
     return model
@@ -37,20 +45,22 @@ def choose_model(name: str) -> ChatModel:
 
 def heal(request_path: str) -> int:
     load_env_file()
+    out = Emitter()
     try:
         req = load_request(request_path)
-        model = choose_model(req.model)
+        model = choose_model(req.model, out)
     except (OSError, ContractError, LLMError) as e:
         print(f"heall-agent: {e}", file=sys.stderr)
         return 2
 
-    out = Emitter()
     try:
         result = agent.run(req, model, HeallBackend(req, request_path), out)
     except BackendError as e:
         # The CLI the agent calls back into is broken; nothing can be proved.
         print(f"heall-agent: {e}", file=sys.stderr)
         return 1
+    if usage := usage_summary(model):
+        out.emit("log", level="info", message=usage)
     out.done(result)
     return 0
 

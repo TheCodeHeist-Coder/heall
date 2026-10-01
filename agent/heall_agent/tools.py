@@ -132,14 +132,19 @@ class Workspace:
             return sorted(found)
 
 
+def numbered(lines: list[str], start: int = 1) -> str:
+    """Lines as "12|text". Nothing separates the bar from the text, so the
+    indentation of each line can be read off exactly."""
+    return "\n".join(f"{n}|{line}" for n, line in enumerate(lines, start))
+
+
 def read_file(ws: Workspace, path: str, start_line: int = 1, end_line: int | None = None) -> tuple[str, str]:
     lines = ws.read(path).splitlines()
     start = max(int(start_line or 1), 1)
     end = min(int(end_line) if end_line else len(lines), len(lines), start + MAX_FILE_LINES - 1)
-    width = len(str(end))
-    body = "\n".join(f"{n:>{width}}  {lines[n - 1]}" for n in range(start, end + 1))
+    body = numbered(lines[start - 1 : end], start)
     note = "" if end >= len(lines) else f"\n... {len(lines) - end} more lines; ask for them with start_line={end + 1}"
-    header = f"{path} (lines {start}-{end} of {len(lines)}; the numbers are not part of the file)\n"
+    header = f"{path}, lines {start}-{end} of {len(lines)}, shown as <number>|<text>:\n"
     return redact(header + body + note), f"{path}: lines {start}-{end} of {len(lines)}"
 
 
@@ -156,10 +161,15 @@ def list_files(ws: Workspace, directory: str = "") -> tuple[str, str]:
 
 
 def search(ws: Workspace, pattern: str, path: str = "") -> tuple[str, str]:
+    if not pattern:
+        raise ToolError("give a pattern to search for")
+    literal = ""
     try:
         regex = re.compile(pattern)
-    except re.error as e:
-        raise ToolError(f"invalid regular expression: {e}") from e
+    except re.error:
+        # Models often search for code such as "paginate(" as it is written.
+        regex = re.compile(re.escape(pattern))
+        literal = " (searched as plain text; it is not a valid regular expression)"
     prefix = path.strip("/")
     matches: list[str] = []
     total = 0
@@ -176,9 +186,9 @@ def search(ws: Workspace, pattern: str, path: str = "") -> tuple[str, str]:
                 if len(matches) < MAX_MATCHES:
                     matches.append(f"{file}:{n}: {line.strip()[:200]}")
     if not matches:
-        return f"no matches for {pattern!r}", "0 matches"
+        return f"no matches for {pattern!r}{literal}", "0 matches"
     note = "" if total <= MAX_MATCHES else f"\n... {total - MAX_MATCHES} more matches; narrow the pattern or path"
-    return redact("\n".join(matches) + note), f"{total} matches"
+    return redact(f"{total} matches for {pattern!r}{literal}:\n" + "\n".join(matches) + note), f"{total} matches"
 
 
 def run_test(backend: Backend, name: str = "") -> tuple[str, str]:
@@ -219,6 +229,58 @@ def parse_edits(raw: object) -> list[Edit]:
     return edits
 
 
+_LINE_NUMBER = re.compile(r"^\s*\d+\|")
+
+
+def _indent(line: str) -> str:
+    return line[: len(line) - len(line.lstrip())]
+
+
+def replace_once(path: str, content: str, old: str, new: str) -> str:
+    """Replace the one place in content that old refers to.
+
+    An exact match is used when there is one. Otherwise the lines are compared
+    without their indentation and without any "12|" line numbers copied from
+    read_file, since models reproduce the words of a line far more reliably
+    than its leading whitespace. The replacement is then indented the way the
+    file is.
+    """
+    count = content.count(old)
+    if count == 1:
+        return content.replace(old, new, 1)
+    if count > 1:
+        raise ToolError(f"{path}: old_text matches {count} places; include more surrounding lines so it matches one")
+
+    strip = lambda text: [_LINE_NUMBER.sub("", line) for line in text.strip("\n").split("\n")]
+    old_lines, new_lines = strip(old), strip(new)
+    wanted = [line.strip() for line in old_lines]
+    if not any(wanted):
+        raise ToolError(f"{path}: old_text is empty")
+    lines = content.split("\n")
+    hits = [
+        i
+        for i in range(len(lines) - len(wanted) + 1)
+        if [line.strip() for line in lines[i : i + len(wanted)]] == wanted
+    ]
+    if not hits:
+        raise ToolError(
+            f"{path}: old_text was not found, even ignoring indentation. Copy whole lines from the file, "
+            "without the line numbers."
+        )
+    if len(hits) > 1:
+        raise ToolError(f"{path}: old_text matches {len(hits)} places; include more surrounding lines so it matches one")
+
+    at = hits[0]
+    # Shift the replacement by the difference between how the model indented
+    # the first line and how the file does.
+    given, actual = _indent(old_lines[0]), _indent(lines[at])
+    shifted = [
+        "" if not line.strip() else actual + line[len(given) :] if line.startswith(given) else actual + line.lstrip()
+        for line in new_lines
+    ]
+    return "\n".join(lines[:at] + shifted + lines[at + len(wanted) :])
+
+
 def build_diff(ws: Workspace, edits: list[Edit]) -> str:
     """Turn search-and-replace edits into one unified diff.
 
@@ -244,15 +306,7 @@ def build_diff(ws: Workspace, edits: list[Edit]) -> str:
             raise ToolError(f"{path} does not exist; to create it, use an empty old_text")
         if edit.old_text == "":
             raise ToolError(f"{path} exists; old_text must be the exact text to replace")
-        count = current.count(edit.old_text)
-        if count == 0:
-            raise ToolError(
-                f"{path}: old_text was not found. Read the file again and copy the text exactly, "
-                "including indentation, without the line numbers."
-            )
-        if count > 1:
-            raise ToolError(f"{path}: old_text matches {count} places; include more surrounding lines so it matches one")
-        after[path] = current.replace(edit.old_text, edit.new_text, 1)
+        after[path] = replace_once(path, current, edit.old_text, edit.new_text)
 
     parts = []
     for path in sorted(after):

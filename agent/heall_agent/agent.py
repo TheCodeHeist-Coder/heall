@@ -9,6 +9,7 @@ the agent escalates on its behalf with what was learned so far.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -23,8 +24,14 @@ from .tools import Backend, ToolError, Workspace
 MAX_STEPS = 30
 MAX_NUDGES = 2
 MAX_THOUGHT = 1500
-MAX_CONTEXT_OUTPUT = 4000
-MAX_CONTEXT_DIFF = 12000
+MAX_CONTEXT_OUTPUT = 3000
+MAX_CONTEXT_DIFF = 8000
+# Source shown to the model up front, to save it a round trip per file.
+MAX_PRELOAD_CHARS = 8000
+MAX_PRELOAD_LINES = 200
+# Rough size, in tokens, the conversation is kept under. Groq's free tier
+# allows 8000 tokens a minute, and every call resends the conversation.
+CONTEXT_TOKENS = int(os.environ.get("HEALL_CONTEXT_TOKENS", "5500"))
 
 SYSTEM = """\
 You are the heal stage of heall, a tool that repairs a failing CI build. A test \
@@ -48,11 +55,14 @@ to edit. A patch that touches them is rejected without being run.
 runner, or exiting early. Such patches are rejected.
 
 How to work
-1. Read the failing test and the code it exercises before changing anything.
+1. Study the failing test and the code it exercises before changing anything. \
+The files most likely to matter are included in the first message, shown as \
+<number>|<text>; you need not read those again.
 2. Work out why the culprit commit broke the test. Read its message as well as \
 its diff: the message says what the author intended.
 3. Before you submit, search for the other callers and tests of whatever you \
-plan to change. The obvious edit often breaks them. Prefer the smallest change \
+plan to change (search takes a regular expression, so escape brackets). The \
+obvious edit often breaks them. Prefer the smallest change \
 that fixes the cause. Do not simply revert the culprit if later code builds on it.
 4. Submit the patch. If it fails, read the verifier's output and think again; \
 do not resubmit a variation of the same idea.
@@ -182,7 +192,29 @@ def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + "\n... (cut)"
 
 
-def context_message(req: HealRequest, attempts_left: int) -> str:
+def preload(req: HealRequest, ws: Workspace) -> list[str]:
+    """The failing test's file and the suspect files, as far as they fit."""
+    parts: list[str] = []
+    room = MAX_PRELOAD_CHARS
+    for path in dict.fromkeys([req.failure.test_file, *req.suspect_files]):
+        if not path or not ws.exists(path):
+            continue
+        try:
+            lines = ws.read(path).splitlines()
+        except ToolError:
+            continue
+        text = tools.numbered(lines[:MAX_PRELOAD_LINES])
+        if len(lines) > MAX_PRELOAD_LINES:
+            text += f"\n... {len(lines) - MAX_PRELOAD_LINES} more lines; use read_file for them"
+        if len(text) > room:
+            continue
+        room -= len(text)
+        label = "The failing test's file" if path == req.failure.test_file else "File"
+        parts += ["", f"{label} {path}:", text]
+    return parts
+
+
+def context_message(req: HealRequest, ws: Workspace, attempts_left: int) -> str:
     c = req.culprit
     parts = [
         f"Failing test: {req.failure.test_name}",
@@ -197,8 +229,9 @@ def context_message(req: HealRequest, attempts_left: int) -> str:
         "Its diff:",
         _clip(c.diff, MAX_CONTEXT_DIFF),
     ]
-    if req.suspect_files:
-        parts += ["", "Files worth reading first: " + ", ".join(req.suspect_files)]
+    shown = preload(req, ws)
+    if shown:
+        parts += ["", "The files below are as they are at the failing commit, shown as <number>|<text>."] + shown
     parts += ["", f"You have {attempts_left} patch attempt(s)."]
     return redact("\n".join(parts))
 
@@ -321,14 +354,53 @@ def _arguments(raw: Any) -> dict[str, Any]:
     return value
 
 
-def _shrink(messages: list[Message]) -> bool:
-    """Drop the body of older tool results to make the conversation smaller."""
-    tool_messages = [m for m in messages if m.get("role") == "tool" and len(m.get("content", "")) > 300]
-    if len(tool_messages) <= 1:
-        return False
+DROPPED = "\n... (earlier output dropped to save space)"
+
+
+def _tokens(messages: list[Message]) -> int:
+    """A rough count; about 3.5 characters make a token."""
+    chars = sum(len(m.get("content") or "") + len(json.dumps(m.get("tool_calls") or "")) for m in messages)
+    return int(chars / 3.5)
+
+
+def _implied_call(content: str) -> dict | None:
+    """The tool call a model meant when it wrote the arguments as its answer.
+
+    Some models reply with the JSON arguments of submit_patch or escalate as
+    plain text instead of calling the tool. The intent is unambiguous, so it
+    is honoured rather than spending another model call on a reminder.
+    """
+    text = content.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-z]*\n|\n```$", "", text)
+    try:
+        args = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(args, dict):
+        return None
+    if isinstance(args.get("edits"), list):
+        name = "submit_patch"
+    elif isinstance(args.get("diagnosis"), str):
+        name = "escalate"
+    else:
+        return None
+    return {"id": "implied", "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
+
+
+def _shrink(messages: list[Message], target: int | None = None) -> bool:
+    """Drop the body of older tool results, oldest first, to make the
+    conversation smaller. The latest result is always kept whole. With a
+    target, stop as soon as the conversation is under it."""
+    tool_messages = [m for m in messages if m.get("role") == "tool"]
+    changed = False
     for m in tool_messages[:-1]:
-        m["content"] = m["content"][:200] + "\n... (earlier output dropped to save space)"
-    return True
+        if target is not None and _tokens(messages) <= target:
+            break
+        if len(m.get("content", "")) > 300 and not m["content"].endswith(DROPPED):
+            m["content"] = m["content"][:200] + DROPPED
+            changed = True
+    return changed
 
 
 def run(req: HealRequest, model: ChatModel, backend: Backend, out: Emitter) -> HealResult:
@@ -350,7 +422,7 @@ def run(req: HealRequest, model: ChatModel, backend: Backend, out: Emitter) -> H
 
     messages: list[Message] = [
         {"role": "system", "content": SYSTEM.format(allow=", ".join(req.allow), protect=", ".join(req.protect))},
-        {"role": "user", "content": context_message(req, state.attempts_left)},
+        {"role": "user", "content": context_message(req, ws, state.attempts_left)},
     ]
     nudges = 0
     for _ in range(MAX_STEPS):
@@ -358,6 +430,7 @@ def run(req: HealRequest, model: ChatModel, backend: Backend, out: Emitter) -> H
         exhausted = state.attempts_left <= 0
         offered = ESCALATE_ONLY if exhausted else TOOLS
         choice: Any = {"type": "function", "function": {"name": "escalate"}} if exhausted else "auto"
+        _shrink(messages, CONTEXT_TOKENS)
         try:
             reply = model.chat(messages, offered, choice)
         except RequestTooLarge as e:
@@ -369,11 +442,14 @@ def run(req: HealRequest, model: ChatModel, backend: Backend, out: Emitter) -> H
             out.emit("log", level="error", message=f"model call failed: {e}")
             return state.give_up(f"the language model could not be used: {e}")
 
-        thought = (reply.get("content") or reply.get("reasoning") or "").strip()
+        calls = reply.get("tool_calls") or []
+        content = reply.get("content") or ""
+        if not calls and not exhausted and (implied := _implied_call(content)):
+            calls, content = [implied], ""
+        thought = (content or reply.get("reasoning") or "").strip()
         if thought:
             out.emit("agent_thought", text=_clip(thought, MAX_THOUGHT))
-        calls = reply.get("tool_calls") or []
-        entry: Message = {"role": "assistant", "content": reply.get("content") or ""}
+        entry: Message = {"role": "assistant", "content": content}
         if calls:
             entry["tool_calls"] = calls
         messages.append(entry)
