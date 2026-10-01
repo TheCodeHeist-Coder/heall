@@ -43,6 +43,8 @@ class Failure:
 @dataclass(frozen=True)
 class Culprit:
     commit: Commit
+    # The full commit message: it often says whether a change was intended.
+    message: str
     diff: str
 
 
@@ -60,6 +62,8 @@ class HealRequest:
     good: str
     bad: str
     failure: Failure
+    # Source files triage picked out as worth reading first.
+    suspect_files: list[str]
     culprit: Culprit
     allow: list[str]
     protect: list[str]

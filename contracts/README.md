@@ -79,8 +79,14 @@ python -m heall_agent heal --request <path to HealRequest JSON>
 ```
 
 `examples/heal_request.json` shows the request: the failing test and its
-output, the culprit commit and diff, the allow and protect lists, the attempt
-limit, the model, and a `worktree` checked out at the bad commit for reading.
+output, the files triage picked out, the culprit commit with its full message
+and diff, the allow and protect lists, the attempt limit, the model, and a
+`worktree` checked out at the bad commit for reading.
+
+The model is a Groq model; the agent reads its key from `GROQ_API_KEY`, or
+several from `GROQ_API_KEYS`, in the environment or a `.env` file (see
+`.env.example`). `HEALL_LLM_RECORD=<file>` saves the model's replies and
+`HEALL_LLM_REPLAY=<file>` replays them without the network.
 
 The agent replies on **stdout** with event lines that carry only `kind` and
 `data`. The CLI validates each one, adds the envelope and relays it:
@@ -95,7 +101,13 @@ The agent replies on **stdout** with event lines that carry only `kind` and
 - The last line is always `agent_done`. That payload is the result.
 - **stderr** is free-form logging.
 - Exit code 0 means the agent finished, whether it fixed or escalated. Any
-  other exit code is a crash, and the CLI escalates.
+  other exit code is a crash or a setup problem (such as a missing API key);
+  the CLI reports it as an error, with the agent's stderr.
+- The CLI relays only the kinds listed above and drops malformed events, so
+  the agent cannot announce a culprit, a delivery or the end of a run.
+- With `inject_bad_patch`, the agent first submits a staged patch that skips
+  the failing test, to show the guardrails rejecting it. The CLI allows one
+  extra attempt for it.
 
 ## 3. Agent to CLI
 

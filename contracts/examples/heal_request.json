@@ -12,6 +12,7 @@
     "test_file": "test/paginate.test.js",
     "output": "not ok 3 - paginate returns the last partial page\n  expected: 3\n  actual: 2\n"
   },
+  "suspect_files": ["src/paginate.js"],
   "culprit": {
     "commit": {
       "sha": "b2c3d4e",
@@ -19,11 +20,12 @@
       "author": "Ravi",
       "date": "2026-09-02T09:00:00Z"
     },
+    "message": "simplify page maths\n\nUse floor so the count is always a whole number.",
     "diff": "--- a/src/paginate.js\n+++ b/src/paginate.js\n@@ -3 +3 @@\n-  return Math.ceil(total / size);\n+  return Math.floor(total / size);\n"
   },
   "allow": ["src/**"],
   "protect": ["test/**", "**/*.test.js", "scripts/**", "package.json", ".heall.yaml"],
   "max_attempts": 3,
-  "model": "claude-opus-5-5",
+  "model": "openai/gpt-oss-120b",
   "inject_bad_patch": false
 }

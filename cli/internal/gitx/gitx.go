@@ -333,3 +333,8 @@ func WorktreeDiff(ctx context.Context, dir string) (string, error) {
 	}
 	return diff + "\n", nil
 }
+
+// Message returns the full commit message of sha.
+func (r *Repo) Message(ctx context.Context, sha string) (string, error) {
+	return r.git(ctx, "log", "-1", "--format=%B", sha)
+}

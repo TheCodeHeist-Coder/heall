@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -57,6 +58,7 @@ type session struct {
 	emitter *events.Emitter
 	printer *console.Printer
 	flags   commonFlags
+	runID   string
 	out     io.Writer
 	closers []func()
 }
@@ -102,7 +104,8 @@ func openSession(cmd *cobra.Command, flags commonFlags) (*session, error) {
 		s.closers = append(s.closers, func() { f.Close() })
 		sinks = append(sinks, f)
 	}
-	s.emitter = events.NewEmitter(newRunID(), sinks...)
+	s.runID = newRunID()
+	s.emitter = events.NewEmitter(s.runID, sinks...)
 	s.printer = console.New(human)
 	s.emitter.Listen(s.printer.Handle)
 	return s, nil
@@ -145,6 +148,18 @@ func (s *session) printJSON(v any) error {
 	enc := json.NewEncoder(s.out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+// absConfigPath is the --config flag as an absolute path, for handing to
+// the agent, whose callbacks may run in another directory.
+func absConfigPath() string {
+	if configPath == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(configPath); err == nil {
+		return abs
+	}
+	return configPath
 }
 
 func newRunID() string {

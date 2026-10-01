@@ -47,6 +47,8 @@ type Reproduce struct {
 type Heal struct {
 	MaxAttempts int    `yaml:"max_attempts"`
 	Model       string `yaml:"model"`
+	// TimeoutSeconds bounds the whole heal stage, model calls included.
+	TimeoutSeconds int `yaml:"timeout_seconds"`
 }
 
 type Config struct {
@@ -80,7 +82,7 @@ func Default() Config {
 		Reproduce: Reproduce{
 			Runs: 5,
 		},
-		Heal: Heal{MaxAttempts: 3, Model: "claude-opus-5-5"},
+		Heal: Heal{MaxAttempts: 3, Model: "openai/gpt-oss-120b", TimeoutSeconds: 900},
 	}
 }
 
@@ -154,6 +156,9 @@ func (c Config) Validate() error {
 	}
 	if c.Heal.MaxAttempts < 1 {
 		errs = append(errs, errors.New("heal.max_attempts must be at least 1"))
+	}
+	if c.Heal.TimeoutSeconds < 1 {
+		errs = append(errs, errors.New("heal.timeout_seconds must be at least 1"))
 	}
 	return errors.Join(errs...)
 }

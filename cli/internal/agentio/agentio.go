@@ -16,7 +16,10 @@ type Failure struct {
 
 type Culprit struct {
 	Commit events.Commit `json:"commit"`
-	Diff   string        `json:"diff"`
+	// Message is the full commit message: it often says whether a change
+	// was intended.
+	Message string `json:"message"`
+	Diff    string `json:"diff"`
 }
 
 // HealRequest is written to a file and passed to the agent with --request.
@@ -31,10 +34,12 @@ type HealRequest struct {
 	// HeallBin is the CLI binary the agent calls back for _runtest and _verify.
 	HeallBin string `json:"heall_bin"`
 	// ConfigPath is the .heall.yaml in use; empty means the one in RepoDir.
-	ConfigPath     string   `json:"config_path"`
-	Good           string   `json:"good"`
-	Bad            string   `json:"bad"`
-	Failure        Failure  `json:"failure"`
+	ConfigPath string  `json:"config_path"`
+	Good       string  `json:"good"`
+	Bad        string  `json:"bad"`
+	Failure    Failure `json:"failure"`
+	// SuspectFiles are the source files triage picked out to read first.
+	SuspectFiles   []string `json:"suspect_files"`
 	Culprit        Culprit  `json:"culprit"`
 	Allow          []string `json:"allow"`
 	Protect        []string `json:"protect"`

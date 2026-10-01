@@ -3,6 +3,7 @@
 package console
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +22,8 @@ type Printer struct {
 	// good and bad label the two ends in the reproduce stage.
 	good, bad string
 	reproduce bool
+	// calls remembers each tool call until its result arrives.
+	calls map[string]string
 }
 
 // SetEnds tells the printer which commits are the known-good and the bad
@@ -37,7 +40,7 @@ func New(w io.Writer) *Printer {
 			color = info.Mode()&os.ModeCharDevice != 0
 		}
 	}
-	return &Printer{w: w, color: color, index: map[string]int{}}
+	return &Printer{w: w, color: color, index: map[string]int{}, calls: map[string]string{}}
 }
 
 const (
@@ -66,6 +69,42 @@ func (p *Printer) verdict(v events.Verdict) string {
 	default:
 		return p.paint(gray, "– skipped")
 	}
+}
+
+// toolArgs shows the argument that says what a tool call is about.
+func toolArgs(name string, input json.RawMessage) string {
+	var args map[string]any
+	if json.Unmarshal(input, &args) != nil {
+		return ""
+	}
+	key := map[string]string{
+		"read_file": "path", "list_files": "directory", "search": "pattern", "run_test": "name", "escalate": "reason",
+	}[name]
+	if v, ok := args[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// wrap breaks text into lines of at most width characters, keeping the
+// text's own line breaks.
+func wrap(text string, width int) []string {
+	var out []string
+	for _, para := range strings.Split(strings.TrimSpace(text), "\n") {
+		line := ""
+		for _, word := range strings.Fields(para) {
+			if line != "" && len(line)+1+len(word) > width {
+				out = append(out, line)
+				line = ""
+			}
+			if line != "" {
+				line += " "
+			}
+			line += word
+		}
+		out = append(out, line)
+	}
+	return out
 }
 
 func seconds(ms int64) string {
@@ -113,6 +152,73 @@ func (p *Printer) Handle(ev events.Event) {
 		fmt.Fprintf(p.w, "%s at %s: %s\n", p.paint(bold+";"+yellow, "escalated"), ev.Stage, d.Reason)
 		for _, line := range strings.Split(d.Diagnosis, "\n") {
 			fmt.Fprintf(p.w, "  %s\n", line)
+		}
+	case *events.AgentStarted:
+		fmt.Fprintf(p.w, "%s agent on %s, up to %d patch attempts\n", p.paint(bold, "heal"), d.Model, d.MaxAttempts)
+	case *events.AgentThought:
+		for _, line := range wrap(d.Text, 96) {
+			fmt.Fprintf(p.w, "  %s\n", p.paint(gray, "│ "+line))
+		}
+	case *events.ToolCall:
+		p.calls[d.ID] = fmt.Sprintf("%s %s", d.Name, toolArgs(d.Name, d.Input))
+	case *events.ToolResult:
+		// A submitted patch is reported by the events it causes. Only a
+		// submission that never reached the verifier needs a line here.
+		if d.Name == "submit_patch" && (d.OK || strings.HasPrefix(d.Summary, "failed") || strings.HasPrefix(d.Summary, "rejected")) {
+			return
+		}
+		// An escalation is reported by the stage that receives it.
+		if d.Name == "escalate" && d.OK {
+			return
+		}
+		mark := p.paint(green, "✓")
+		if !d.OK {
+			mark = p.paint(yellow, "!")
+		}
+		fmt.Fprintf(p.w, "  %s %-46.46s %s\n", mark, p.calls[d.ID], p.paint(gray, d.Summary))
+	case *events.PatchSubmitted:
+		fmt.Fprintf(p.w, "  %s\n", p.paint(bold, fmt.Sprintf("patch %d", d.Attempt)))
+		for _, line := range strings.Split(strings.TrimRight(d.Diff, "\n"), "\n") {
+			switch {
+			case strings.HasPrefix(line, "+++"), strings.HasPrefix(line, "---"), strings.HasPrefix(line, "diff "), strings.HasPrefix(line, "new file"):
+				line = p.paint(bold, line)
+			case strings.HasPrefix(line, "+"):
+				line = p.paint(green, line)
+			case strings.HasPrefix(line, "-"):
+				line = p.paint(red, line)
+			case strings.HasPrefix(line, "@@"):
+				line = p.paint(gray, line)
+			}
+			fmt.Fprintf(p.w, "    %s\n", line)
+		}
+	case *events.GuardrailChecked:
+		if d.Passed {
+			fmt.Fprintf(p.w, "    %s all %d checks passed\n", p.paint(green, "guardrails:"), len(d.Checks))
+			return
+		}
+		for _, c := range d.Checks {
+			if !c.Passed {
+				fmt.Fprintf(p.w, "    %s %s: %s\n", p.paint(red, "guardrail blocked it:"), c.Name, c.Detail)
+			}
+		}
+	case *events.VerifyDone:
+		switch d.Status {
+		case "verified":
+			fmt.Fprintf(p.w, "    %s the failing test passes and nothing else broke\n", p.paint(green, "✓ verified:"))
+		case "rejected":
+			fmt.Fprintf(p.w, "    %s the patch was not applied\n", p.paint(red, "✗ rejected:"))
+		default:
+			why := "the failing test still fails"
+			if len(d.NewFailures) > 0 {
+				why = fmt.Sprintf("it breaks %d other test(s): %s", len(d.NewFailures), strings.Join(d.NewFailures, "; "))
+			} else if d.TargetPassed {
+				why = "the full suite did not pass"
+			}
+			fmt.Fprintf(p.w, "    %s %s\n", p.paint(red, "✗ failed:"), why)
+		}
+	case *events.AgentDone:
+		if d.Outcome == "fixed" {
+			fmt.Fprintf(p.w, "  %s after %d attempt(s). Root cause: %s\n", p.paint(bold+";"+green, "fix found"), d.Attempts, d.RootCause)
 		}
 	case *events.LocateStarted:
 		p.commits = d.Commits

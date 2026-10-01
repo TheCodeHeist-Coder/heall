@@ -122,7 +122,7 @@ reproduce:
 
 heal:
   max_attempts: 3
-  model: claude-opus-5-5
+  model: openai/gpt-oss-120b
 `;
 
 const PACKAGE_JSON = `{

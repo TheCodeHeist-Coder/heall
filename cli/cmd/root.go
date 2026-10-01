@@ -65,7 +65,7 @@ func init() {
 		newTriageCmd(),
 		newReproduceCmd(),
 		newLocateCmd(),
-		stub("heal", "Ask the agent for a fix and verify it against the guardrails", 6, false),
+		newHealCmd(),
 		stub("pr", "Open a draft pull request with the patch and evidence", 7, false),
 		// Called by the Python agent, not by people.
 		newRunTestCmd(),
