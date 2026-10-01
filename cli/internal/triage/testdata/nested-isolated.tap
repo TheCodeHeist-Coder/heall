@@ -1,0 +1,96 @@
+TAP version 13
+# file:///tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/test/broken.test.js:1
+# import { nope } from "../src/calc.js";
+#          ^^^^
+# SyntaxError: The requested module '../src/calc.js' does not provide an export named 'nope'
+#     at \#asyncInstantiate (node:internal/modules/esm/module_job:326:21)
+#     at async ModuleJob.run (node:internal/modules/esm/module_job:429:5)
+#     at async node:internal/modules/esm/loader:639:26
+#     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+# Node.js v24.15.0
+# Subtest: test/broken.test.js
+not ok 1 - test/broken.test.js
+  ---
+  duration_ms: 51.12119
+  type: 'test'
+  location: '/tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/test/broken.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: div
+    # Subtest: divides
+    ok 1 - divides
+      ---
+      duration_ms: 0.965344
+      type: 'test'
+      ...
+    # Subtest: handles zero: 'quoted' (parens)
+    not ok 2 - handles zero: 'quoted' (parens)
+      ---
+      duration_ms: 0.577514
+      type: 'test'
+      location: '/tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/test/calc.test.js:6:3'
+      failureType: 'testCodeFailure'
+      error: 'division by zero'
+      code: 'ERR_TEST_FAILURE'
+      name: 'RangeError'
+      stack: |-
+        div (file:///tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/src/calc.js:2:22)
+        TestContext.<anonymous> (file:///tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/test/calc.test.js:6:62)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1201:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:831:18)
+        Test.postRun (node:internal/test_runner/test:1330:19)
+        Test.run (node:internal/test_runner/test:1258:12)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1619:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+      ...
+    1..2
+not ok 2 - div
+  ---
+  duration_ms: 3.076549
+  type: 'suite'
+  location: '/tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/test/calc.test.js:4:1'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: skipped one
+ok 3 - skipped one # SKIP
+  ---
+  duration_ms: 0.186115
+  type: 'test'
+  ...
+# Subtest: todo one
+not ok 4 - todo one # TODO
+  ---
+  duration_ms: 0.822317
+  type: 'test'
+  location: '/tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/test/calc.test.js:9:1'
+  failureType: 'testCodeFailure'
+  error: 'x'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'fail'
+  stack: |-
+    TestContext.<anonymous> (file:///tmp/claude-1000/-home-codeheist-Desktop-heall/4e736679-6afc-48aa-8708-b06b70d7b79c/scratchpad/tapsample/test/calc.test.js:9:49)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1201:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:831:18)
+    Test.postRun (node:internal/test_runner/test:1330:19)
+    Test.run (node:internal/test_runner/test:1258:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:831:7)
+  ...
+1..4
+# tests 5
+# suites 1
+# pass 1
+# fail 2
+# cancelled 0
+# skipped 1
+# todo 1
+# duration_ms 118.063324

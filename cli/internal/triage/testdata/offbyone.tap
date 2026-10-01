@@ -1,0 +1,562 @@
+TAP version 13
+# Subtest: unique drops duplicates
+ok 1 - unique drops duplicates
+  ---
+  duration_ms: 2.885892
+  type: 'test'
+  ...
+# Subtest: unique handles an empty list
+ok 2 - unique handles an empty list
+  ---
+  duration_ms: 0.197853
+  type: 'test'
+  ...
+# Subtest: sum adds numbers
+ok 3 - sum adds numbers
+  ---
+  duration_ms: 0.141661
+  type: 'test'
+  ...
+# Subtest: sum is zero for an empty list
+ok 4 - sum is zero for an empty list
+  ---
+  duration_ms: 0.104966
+  type: 'test'
+  ...
+# Subtest: compact drops falsy values
+ok 5 - compact drops falsy values
+  ---
+  duration_ms: 0.162606
+  type: 'test'
+  ...
+# Subtest: compact handles an empty list
+ok 6 - compact handles an empty list
+  ---
+  duration_ms: 0.107803
+  type: 'test'
+  ...
+# Subtest: chunk splits into groups
+ok 7 - chunk splits into groups
+  ---
+  duration_ms: 0.163654
+  type: 'test'
+  ...
+# Subtest: chunk returns nothing for an empty list
+ok 8 - chunk returns nothing for an empty list
+  ---
+  duration_ms: 0.11513
+  type: 'test'
+  ...
+# Subtest: last returns the final item
+ok 9 - last returns the final item
+  ---
+  duration_ms: 0.136498
+  type: 'test'
+  ...
+# Subtest: range counts up to the end
+ok 10 - range counts up to the end
+  ---
+  duration_ms: 0.288703
+  type: 'test'
+  ...
+# Subtest: last returns undefined for an empty list
+ok 11 - last returns undefined for an empty list
+  ---
+  duration_ms: 0.162122
+  type: 'test'
+  ...
+# Subtest: flatten flattens nested lists
+ok 12 - flatten flattens nested lists
+  ---
+  duration_ms: 0.151549
+  type: 'test'
+  ...
+# Subtest: range is empty when start equals end
+ok 13 - range is empty when start equals end
+  ---
+  duration_ms: 0.085763
+  type: 'test'
+  ...
+# Subtest: flatten flattens only one level
+ok 14 - flatten flattens only one level
+  ---
+  duration_ms: 0.094318
+  type: 'test'
+  ...
+# Subtest: zip pairs items
+ok 15 - zip pairs items
+  ---
+  duration_ms: 0.127034
+  type: 'test'
+  ...
+# Subtest: zip stops at the shorter list
+ok 16 - zip stops at the shorter list
+  ---
+  duration_ms: 0.088271
+  type: 'test'
+  ...
+# Subtest: groupBy groups by key
+ok 17 - groupBy groups by key
+  ---
+  duration_ms: 0.237191
+  type: 'test'
+  ...
+# Subtest: groupBy handles an empty list
+ok 18 - groupBy handles an empty list
+  ---
+  duration_ms: 0.069292
+  type: 'test'
+  ...
+# Subtest: partition splits by the predicate
+ok 19 - partition splits by the predicate
+  ---
+  duration_ms: 0.151574
+  type: 'test'
+  ...
+# Subtest: partition handles an empty list
+ok 20 - partition handles an empty list
+  ---
+  duration_ms: 0.074554
+  type: 'test'
+  ...
+# Subtest: cartTotal multiplies price by quantity
+ok 21 - cartTotal multiplies price by quantity
+  ---
+  duration_ms: 0.148436
+  type: 'test'
+  ...
+# Subtest: priceLabel uses the shared formatter
+ok 22 - priceLabel uses the shared formatter
+  ---
+  duration_ms: 0.150206
+  type: 'test'
+  ...
+# Subtest: formatPrice shows dollars and cents
+ok 23 - formatPrice shows dollars and cents
+  ---
+  duration_ms: 0.098377
+  type: 'test'
+  ...
+# Subtest: formatPrice pads whole amounts
+ok 24 - formatPrice pads whole amounts
+  ---
+  duration_ms: 0.05543
+  type: 'test'
+  ...
+# Subtest: percent computes a percentage
+ok 25 - percent computes a percentage
+  ---
+  duration_ms: 0.11948
+  type: 'test'
+  ...
+# Subtest: percent is zero when the total is zero
+ok 26 - percent is zero when the total is zero
+  ---
+  duration_ms: 0.085574
+  type: 'test'
+  ...
+# Subtest: inRange accepts values inside
+ok 27 - inRange accepts values inside
+  ---
+  duration_ms: 0.066225
+  type: 'test'
+  ...
+# Subtest: inRange rejects values outside
+ok 28 - inRange rejects values outside
+  ---
+  duration_ms: 0.050697
+  type: 'test'
+  ...
+# Subtest: average computes the mean
+ok 29 - average computes the mean
+  ---
+  duration_ms: 0.084014
+  type: 'test'
+  ...
+# Subtest: average is zero for an empty list
+ok 30 - average is zero for an empty list
+  ---
+  duration_ms: 0.047389
+  type: 'test'
+  ...
+# Subtest: isEven accepts even numbers
+ok 31 - isEven accepts even numbers
+  ---
+  duration_ms: 0.056125
+  type: 'test'
+  ...
+# Subtest: isEven rejects odd numbers
+ok 32 - isEven rejects odd numbers
+  ---
+  duration_ms: 0.064239
+  type: 'test'
+  ...
+# Subtest: roundTo rounds to two places
+ok 33 - roundTo rounds to two places
+  ---
+  duration_ms: 0.073836
+  type: 'test'
+  ...
+# Subtest: gcd finds the common divisor
+ok 34 - gcd finds the common divisor
+  ---
+  duration_ms: 0.084002
+  type: 'test'
+  ...
+# Subtest: roundTo rounds halves up
+ok 35 - roundTo rounds halves up
+  ---
+  duration_ms: 0.058385
+  type: 'test'
+  ...
+# Subtest: gcd handles zero
+ok 36 - gcd handles zero
+  ---
+  duration_ms: 0.055281
+  type: 'test'
+  ...
+# Subtest: median picks the middle value
+ok 37 - median picks the middle value
+  ---
+  duration_ms: 0.114839
+  type: 'test'
+  ...
+# Subtest: median averages the two middle values
+ok 38 - median averages the two middle values
+  ---
+  duration_ms: 0.061087
+  type: 'test'
+  ...
+# Subtest: clamp caps at the maximum
+ok 39 - clamp caps at the maximum
+  ---
+  duration_ms: 0.066658
+  type: 'test'
+  ...
+# Subtest: clamp raises to the minimum
+ok 40 - clamp raises to the minimum
+  ---
+  duration_ms: 0.048333
+  type: 'test'
+  ...
+# Subtest: mapValues transforms each value
+ok 41 - mapValues transforms each value
+  ---
+  duration_ms: 0.149552
+  type: 'test'
+  ...
+# Subtest: mapValues handles an empty object
+ok 42 - mapValues handles an empty object
+  ---
+  duration_ms: 0.144599
+  type: 'test'
+  ...
+# Subtest: omit drops listed keys
+ok 43 - omit drops listed keys
+  ---
+  duration_ms: 0.118691
+  type: 'test'
+  ...
+# Subtest: isEmpty accepts an empty object
+ok 44 - isEmpty accepts an empty object
+  ---
+  duration_ms: 0.137229
+  type: 'test'
+  ...
+# Subtest: omit handles an empty object
+ok 45 - omit handles an empty object
+  ---
+  duration_ms: 0.065303
+  type: 'test'
+  ...
+# Subtest: isEmpty rejects an object with keys
+ok 46 - isEmpty rejects an object with keys
+  ---
+  duration_ms: 0.054839
+  type: 'test'
+  ...
+# Subtest: getPath reads a nested value
+ok 47 - getPath reads a nested value
+  ---
+  duration_ms: 0.106358
+  type: 'test'
+  ...
+# Subtest: invert swaps keys and values
+ok 48 - invert swaps keys and values
+  ---
+  duration_ms: 0.107604
+  type: 'test'
+  ...
+# Subtest: getPath falls back when the path is missing
+ok 49 - getPath falls back when the path is missing
+  ---
+  duration_ms: 0.056777
+  type: 'test'
+  ...
+# Subtest: invert handles an empty object
+ok 50 - invert handles an empty object
+  ---
+  duration_ms: 0.053494
+  type: 'test'
+  ...
+# Subtest: hasPath finds a nested key
+ok 51 - hasPath finds a nested key
+  ---
+  duration_ms: 0.118817
+  type: 'test'
+  ...
+# Subtest: hasPath reports a missing key
+ok 52 - hasPath reports a missing key
+  ---
+  duration_ms: 0.059112
+  type: 'test'
+  ...
+# Subtest: pick keeps listed keys
+ok 53 - pick keeps listed keys
+  ---
+  duration_ms: 0.112846
+  type: 'test'
+  ...
+# Subtest: pick ignores missing keys
+ok 54 - pick ignores missing keys
+  ---
+  duration_ms: 0.060681
+  type: 'test'
+  ...
+# Subtest: countKeys counts keys
+ok 55 - countKeys counts keys
+  ---
+  duration_ms: 0.067185
+  type: 'test'
+  ...
+# Subtest: countKeys is zero for an empty object
+ok 56 - countKeys is zero for an empty object
+  ---
+  duration_ms: 0.051773
+  type: 'test'
+  ...
+# Subtest: pageCount rounds up a partial page
+ok 57 - pageCount rounds up a partial page
+  ---
+  duration_ms: 0.071379
+  type: 'test'
+  ...
+# Subtest: paginate returns a full page
+not ok 58 - paginate returns a full page
+  ---
+  duration_ms: 1.673364
+  type: 'test'
+  location: '/home/codeheist/Desktop/heall/demo/out/repo/test/paginate.test.js:11:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        4,
+        5,
+    -   6
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 4
+    1: 5
+    2: 6
+  actual:
+    0: 4
+    1: 5
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/codeheist/Desktop/heall/demo/out/repo/test/paginate.test.js:12:10)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1201:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:831:18)
+    Test.postRun (node:internal/test_runner/test:1330:19)
+    Test.run (node:internal/test_runner/test:1258:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:831:7)
+  ...
+# Subtest: paginate returns the last partial page
+ok 59 - paginate returns the last partial page
+  ---
+  duration_ms: 0.120084
+  type: 'test'
+  ...
+# Subtest: paginate returns nothing past the end
+ok 60 - paginate returns nothing past the end
+  ---
+  duration_ms: 0.073052
+  type: 'test'
+  ...
+# Subtest: bounds gives the first and last index of a page
+ok 61 - bounds gives the first and last index of a page
+  ---
+  duration_ms: 0.074242
+  type: 'test'
+  ...
+# Subtest: pageLabel describes a full page
+ok 62 - pageLabel describes a full page
+  ---
+  duration_ms: 0.095582
+  type: 'test'
+  ...
+# Subtest: pageLabel clamps the last page
+ok 63 - pageLabel clamps the last page
+  ---
+  duration_ms: 0.081655
+  type: 'test'
+  ...
+# Subtest: hasNextPage is true before the last page
+ok 64 - hasNextPage is true before the last page
+  ---
+  duration_ms: 1.226626
+  type: 'test'
+  ...
+# Subtest: hasNextPage is false on the last page
+ok 65 - hasNextPage is false on the last page
+  ---
+  duration_ms: 0.100019
+  type: 'test'
+  ...
+# Subtest: backoffDelay doubles each attempt
+ok 66 - backoffDelay doubles each attempt
+  ---
+  duration_ms: 0.078072
+  type: 'test'
+  ...
+# Subtest: backoffDelay is capped
+ok 67 - backoffDelay is capped
+  ---
+  duration_ms: 0.042924
+  type: 'test'
+  ...
+# Subtest: capitalize uppercases the first letter
+ok 68 - capitalize uppercases the first letter
+  ---
+  duration_ms: 0.07081
+  type: 'test'
+  ...
+# Subtest: capitalize leaves an empty string alone
+ok 69 - capitalize leaves an empty string alone
+  ---
+  duration_ms: 0.042401
+  type: 'test'
+  ...
+# Subtest: countWords counts words across extra spaces
+ok 70 - countWords counts words across extra spaces
+  ---
+  duration_ms: 0.195296
+  type: 'test'
+  ...
+# Subtest: countWords counts nothing in blank text
+ok 71 - countWords counts nothing in blank text
+  ---
+  duration_ms: 0.065014
+  type: 'test'
+  ...
+# Subtest: initials takes the first letter of each word
+ok 72 - initials takes the first letter of each word
+  ---
+  duration_ms: 0.114346
+  type: 'test'
+  ...
+# Subtest: truncate shortens long strings
+ok 73 - truncate shortens long strings
+  ---
+  duration_ms: 0.065661
+  type: 'test'
+  ...
+# Subtest: initials handles a single name
+ok 74 - initials handles a single name
+  ---
+  duration_ms: 0.044634
+  type: 'test'
+  ...
+# Subtest: countOccurrences counts matches
+ok 75 - countOccurrences counts matches
+  ---
+  duration_ms: 0.055032
+  type: 'test'
+  ...
+# Subtest: truncate keeps short strings
+ok 76 - truncate keeps short strings
+  ---
+  duration_ms: 0.041144
+  type: 'test'
+  ...
+# Subtest: isPalindrome ignores case and spaces
+ok 77 - isPalindrome ignores case and spaces
+  ---
+  duration_ms: 0.10558
+  type: 'test'
+  ...
+# Subtest: countOccurrences counts nothing for an empty needle
+ok 78 - countOccurrences counts nothing for an empty needle
+  ---
+  duration_ms: 0.044858
+  type: 'test'
+  ...
+# Subtest: padLeft pads to the width
+ok 79 - padLeft pads to the width
+  ---
+  duration_ms: 0.057279
+  type: 'test'
+  ...
+# Subtest: isPalindrome rejects other text
+ok 80 - isPalindrome rejects other text
+  ---
+  duration_ms: 0.042787
+  type: 'test'
+  ...
+# Subtest: reverse reverses characters
+ok 81 - reverse reverses characters
+  ---
+  duration_ms: 0.047718
+  type: 'test'
+  ...
+# Subtest: padLeft leaves longer values alone
+ok 82 - padLeft leaves longer values alone
+  ---
+  duration_ms: 0.040348
+  type: 'test'
+  ...
+# Subtest: reverse handles an empty string
+ok 83 - reverse handles an empty string
+  ---
+  duration_ms: 0.037086
+  type: 'test'
+  ...
+# Subtest: camelCase joins words
+ok 84 - camelCase joins words
+  ---
+  duration_ms: 0.088866
+  type: 'test'
+  ...
+# Subtest: camelCase lowercases a single word
+ok 85 - camelCase lowercases a single word
+  ---
+  duration_ms: 0.048957
+  type: 'test'
+  ...
+# Subtest: kebabCase joins words with dashes
+ok 86 - kebabCase joins words with dashes
+  ---
+  duration_ms: 0.061736
+  type: 'test'
+  ...
+# Subtest: kebabCase trims surrounding space
+ok 87 - kebabCase trims surrounding space
+  ---
+  duration_ms: 0.041027
+  type: 'test'
+  ...
+1..87
+# tests 87
+# suites 0
+# pass 86
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 73.976314

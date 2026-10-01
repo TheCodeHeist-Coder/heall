@@ -15,6 +15,7 @@ import (
 	"heall/internal/gitx/gitxtest"
 	"heall/internal/sandbox"
 	"heall/internal/tester"
+	"heall/internal/workspace"
 )
 
 // End to end over real git worktrees, with shell commands standing in for a
@@ -58,7 +59,7 @@ func TestLocateOnARealRepository(t *testing.T) {
 		TestOneCmd: []string{"sh", "-c", fmt.Sprintf(`touch "ran-{{test}}"; test "$(cat value)" -lt %d`, culprit)},
 	}
 	const workers = 5
-	trees, err := NewWorktrees(repo, tester.Tester{Cfg: cfg, Runner: &sandbox.Local{Timeout: 20 * time.Second}}, "value", workers)
+	trees, err := workspace.New(repo, tester.Tester{Cfg: cfg, Runner: &sandbox.Local{Timeout: 20 * time.Second}}, "value", workers)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +94,7 @@ func TestLocateOnARealRepository(t *testing.T) {
 	}
 
 	// A worktree reused for a second commit must not keep the first's files.
-	leftovers, _ := filepath.Glob(filepath.Join(trees.root, "*", "ran-*"))
+	leftovers, _ := filepath.Glob(filepath.Join(trees.Root(), "*", "ran-*"))
 	if len(leftovers) > workers {
 		t.Errorf("%d test leftovers in %d worktrees: checkouts are not cleaned", len(leftovers), workers)
 	}
@@ -101,7 +102,7 @@ func TestLocateOnARealRepository(t *testing.T) {
 	if err := trees.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(trees.root); !os.IsNotExist(err) {
+	if _, err := os.Stat(trees.Root()); !os.IsNotExist(err) {
 		t.Error("the worktree directory was not removed")
 	}
 	if list := fx.Git("worktree", "list"); strings.Count(list, "\n") != 0 {

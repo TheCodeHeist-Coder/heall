@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -101,7 +102,23 @@ func dockerOrSkip(t *testing.T) *Docker {
 	if exec.Command("docker", "image", "inspect", testImage).Run() != nil {
 		t.Skipf("docker or the %s image is not available", testImage)
 	}
-	return &Docker{Image: testImage, Timeout: 30 * time.Second}
+	d := NewDocker(testImage, 30*time.Second)
+	t.Cleanup(func() {
+		if err := d.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return d
+}
+
+func leftovers(t *testing.T, d *Docker) string {
+	t.Helper()
+	out, err := exec.Command("docker", "ps", "--all", "--format", "{{.Names}} {{.Status}}",
+		"--filter", "label="+sessionLabel+"="+d.session).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func TestDockerIsolatesTheCommand(t *testing.T) {
@@ -157,12 +174,36 @@ func TestDockerTimeoutRemovesTheContainer(t *testing.T) {
 	if !res.TimedOut {
 		t.Errorf("timedOut=false after %v", res.Duration)
 	}
-	out, err := exec.Command("docker", "ps", "--all", "--quiet", "--filter", "name=heall-").Output()
-	if err != nil {
+	if left := leftovers(t, d); left != "" {
+		t.Errorf("a container was left after the timeout: %s", left)
+	}
+}
+
+// Cancelling many runs at once, as Reproduce does when it has its answer,
+// can stop the docker client before the container it created has started.
+func TestDockerCloseSweepsCancelledRuns(t *testing.T) {
+	d := dockerOrSkip(t)
+	dir := t.TempDir()
+	for _, delay := range []time.Duration{20, 60, 120, 200, 300, 450} {
+		ctx, cancel := context.WithCancel(context.Background())
+		var wg sync.WaitGroup
+		for range 6 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, _ = d.Run(ctx, dir, []string{"sleep", "30"})
+			}()
+		}
+		time.Sleep(delay * time.Millisecond)
+		cancel()
+		wg.Wait()
+	}
+	t.Logf("before Close: %d container(s) left by cancelled runs", len(strings.Split(leftovers(t, d), "\n")))
+	if err := d.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(string(out)) != "" {
-		t.Errorf("a container was left running after the timeout: %s", out)
+	if left := leftovers(t, d); left != "" {
+		t.Errorf("containers left after Close:\n%s", left)
 	}
 }
 
@@ -170,7 +211,7 @@ func TestDockerPrepareExplainsMissingImage(t *testing.T) {
 	if testing.Short() || exec.Command("docker", "version").Run() != nil {
 		t.Skip("docker is not available")
 	}
-	d := &Docker{Image: "heall.invalid/no-such-image:none", Timeout: time.Second}
+	d := NewDocker("heall.invalid/no-such-image:none", time.Second)
 	err := d.Prepare(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "pull") {
 		t.Errorf("got %v, want a pull error naming the image", err)

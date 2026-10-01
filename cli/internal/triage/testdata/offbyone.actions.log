@@ -1,0 +1,123 @@
+test	Run node --test	2026-10-01T10:00:01.0000001Z ✔ unique drops duplicates (5.280271ms)
+test	Run node --test	2026-10-01T10:00:02.0000002Z ✔ unique handles an empty list (0.383794ms)
+test	Run node --test	2026-10-01T10:00:03.0000003Z ✔ sum adds numbers (0.359335ms)
+test	Run node --test	2026-10-01T10:00:04.0000004Z ✔ sum is zero for an empty list (0.324981ms)
+test	Run node --test	2026-10-01T10:00:05.0000005Z ✔ compact drops falsy values (0.388669ms)
+test	Run node --test	2026-10-01T10:00:06.0000006Z ✔ compact handles an empty list (0.414551ms)
+test	Run node --test	2026-10-01T10:00:07.0000007Z ✔ chunk splits into groups (1.070646ms)
+test	Run node --test	2026-10-01T10:00:08.0000008Z ✔ chunk returns nothing for an empty list (0.849172ms)
+test	Run node --test	2026-10-01T10:00:09.0000009Z ✔ last returns the final item (0.44329ms)
+test	Run node --test	2026-10-01T10:00:10.0000010Z ✔ range counts up to the end (0.573425ms)
+test	Run node --test	2026-10-01T10:00:11.0000011Z ✔ last returns undefined for an empty list (0.344901ms)
+test	Run node --test	2026-10-01T10:00:12.0000012Z ✔ flatten flattens nested lists (0.297462ms)
+test	Run node --test	2026-10-01T10:00:13.0000013Z ✔ range is empty when start equals end (0.212919ms)
+test	Run node --test	2026-10-01T10:00:14.0000014Z ✔ flatten flattens only one level (0.336607ms)
+test	Run node --test	2026-10-01T10:00:15.0000015Z ✔ zip pairs items (0.478072ms)
+test	Run node --test	2026-10-01T10:00:16.0000016Z ✔ zip stops at the shorter list (0.320595ms)
+test	Run node --test	2026-10-01T10:00:17.0000017Z ✔ groupBy groups by key (0.578176ms)
+test	Run node --test	2026-10-01T10:00:18.0000018Z ✔ groupBy handles an empty list (0.234593ms)
+test	Run node --test	2026-10-01T10:00:19.0000019Z ✔ partition splits by the predicate (0.328303ms)
+test	Run node --test	2026-10-01T10:00:20.0000020Z ✔ partition handles an empty list (0.22632ms)
+test	Run node --test	2026-10-01T10:00:21.0000021Z ✔ cartTotal multiplies price by quantity (1.982211ms)
+test	Run node --test	2026-10-01T10:00:22.0000022Z ✔ priceLabel uses the shared formatter (0.44878ms)
+test	Run node --test	2026-10-01T10:00:23.0000023Z ✔ formatPrice shows dollars and cents (1.678612ms)
+test	Run node --test	2026-10-01T10:00:24.0000024Z ✔ formatPrice pads whole amounts (0.272003ms)
+test	Run node --test	2026-10-01T10:00:25.0000025Z ✔ percent computes a percentage (6.445785ms)
+test	Run node --test	2026-10-01T10:00:26.0000026Z ✔ percent is zero when the total is zero (0.355192ms)
+test	Run node --test	2026-10-01T10:00:27.0000027Z ✔ inRange accepts values inside (0.323284ms)
+test	Run node --test	2026-10-01T10:00:28.0000028Z ✔ inRange rejects values outside (0.296948ms)
+test	Run node --test	2026-10-01T10:00:29.0000029Z ✔ average computes the mean (0.410367ms)
+test	Run node --test	2026-10-01T10:00:30.0000030Z ✔ average is zero for an empty list (0.317686ms)
+test	Run node --test	2026-10-01T10:00:31.0000031Z ✔ isEven accepts even numbers (0.371175ms)
+test	Run node --test	2026-10-01T10:00:32.0000032Z ✔ isEven rejects odd numbers (0.279751ms)
+test	Run node --test	2026-10-01T10:00:33.0000033Z ✔ roundTo rounds to two places (0.545554ms)
+test	Run node --test	2026-10-01T10:00:34.0000034Z ✔ gcd finds the common divisor (0.517963ms)
+test	Run node --test	2026-10-01T10:00:35.0000035Z ✔ roundTo rounds halves up (0.31822ms)
+test	Run node --test	2026-10-01T10:00:36.0000036Z ✔ gcd handles zero (0.227913ms)
+test	Run node --test	2026-10-01T10:00:37.0000037Z ✔ median picks the middle value (0.313916ms)
+test	Run node --test	2026-10-01T10:00:38.0000038Z ✔ median averages the two middle values (0.231144ms)
+test	Run node --test	2026-10-01T10:00:39.0000039Z ✔ clamp caps at the maximum (0.270634ms)
+test	Run node --test	2026-10-01T10:00:40.0000040Z ✔ clamp raises to the minimum (0.238125ms)
+test	Run node --test	2026-10-01T10:00:41.0000041Z ✔ mapValues transforms each value (4.238482ms)
+test	Run node --test	2026-10-01T10:00:42.0000042Z ✔ mapValues handles an empty object (0.353192ms)
+test	Run node --test	2026-10-01T10:00:43.0000043Z ✔ omit drops listed keys (0.515672ms)
+test	Run node --test	2026-10-01T10:00:44.0000044Z ✔ isEmpty accepts an empty object (0.247574ms)
+test	Run node --test	2026-10-01T10:00:45.0000045Z ✔ omit handles an empty object (0.221836ms)
+test	Run node --test	2026-10-01T10:00:46.0000046Z ✔ isEmpty rejects an object with keys (0.179497ms)
+test	Run node --test	2026-10-01T10:00:47.0000047Z ✔ getPath reads a nested value (0.287304ms)
+test	Run node --test	2026-10-01T10:00:48.0000048Z ✔ invert swaps keys and values (0.252197ms)
+test	Run node --test	2026-10-01T10:00:49.0000049Z ✔ getPath falls back when the path is missing (0.216042ms)
+test	Run node --test	2026-10-01T10:00:50.0000050Z ✔ invert handles an empty object (0.373375ms)
+test	Run node --test	2026-10-01T10:00:51.0000051Z ✔ hasPath finds a nested key (0.410076ms)
+test	Run node --test	2026-10-01T10:00:52.0000052Z ✔ hasPath reports a missing key (0.203663ms)
+test	Run node --test	2026-10-01T10:00:53.0000053Z ✔ pick keeps listed keys (0.277767ms)
+test	Run node --test	2026-10-01T10:00:54.0000054Z ✔ pick ignores missing keys (0.184093ms)
+test	Run node --test	2026-10-01T10:00:55.0000055Z ✔ countKeys counts keys (0.157481ms)
+test	Run node --test	2026-10-01T10:00:56.0000056Z ✔ countKeys is zero for an empty object (0.492271ms)
+test	Run node --test	2026-10-01T10:00:57.0000057Z ✔ pageCount rounds up a partial page (2.022951ms)
+test	Run node --test	2026-10-01T10:00:58.0000058Z ✖ paginate returns a full page (3.586132ms)
+test	Run node --test	2026-10-01T10:00:59.0000059Z ✔ paginate returns the last partial page (0.769376ms)
+test	Run node --test	2026-10-01T10:00:00.0000060Z ✔ paginate returns nothing past the end (2.604439ms)
+test	Run node --test	2026-10-01T10:00:01.0000061Z ✔ bounds gives the first and last index of a page (0.47412ms)
+test	Run node --test	2026-10-01T10:00:02.0000062Z ✔ pageLabel describes a full page (0.412521ms)
+test	Run node --test	2026-10-01T10:00:03.0000063Z ✔ pageLabel clamps the last page (0.49638ms)
+test	Run node --test	2026-10-01T10:00:04.0000064Z ✔ hasNextPage is true before the last page (0.344205ms)
+test	Run node --test	2026-10-01T10:00:05.0000065Z ✔ hasNextPage is false on the last page (0.415819ms)
+test	Run node --test	2026-10-01T10:00:06.0000066Z ✔ backoffDelay doubles each attempt (1.319226ms)
+test	Run node --test	2026-10-01T10:00:07.0000067Z ✔ backoffDelay is capped (0.30572ms)
+test	Run node --test	2026-10-01T10:00:08.0000068Z ✔ capitalize uppercases the first letter (3.301641ms)
+test	Run node --test	2026-10-01T10:00:09.0000069Z ✔ capitalize leaves an empty string alone (0.241154ms)
+test	Run node --test	2026-10-01T10:00:10.0000070Z ✔ countWords counts words across extra spaces (0.432793ms)
+test	Run node --test	2026-10-01T10:00:11.0000071Z ✔ countWords counts nothing in blank text (0.268225ms)
+test	Run node --test	2026-10-01T10:00:12.0000072Z ✔ initials takes the first letter of each word (0.325271ms)
+test	Run node --test	2026-10-01T10:00:13.0000073Z ✔ truncate shortens long strings (0.278079ms)
+test	Run node --test	2026-10-01T10:00:14.0000074Z ✔ initials handles a single name (0.164191ms)
+test	Run node --test	2026-10-01T10:00:15.0000075Z ✔ countOccurrences counts matches (0.189146ms)
+test	Run node --test	2026-10-01T10:00:16.0000076Z ✔ truncate keeps short strings (0.385995ms)
+test	Run node --test	2026-10-01T10:00:17.0000077Z ✔ isPalindrome ignores case and spaces (0.404072ms)
+test	Run node --test	2026-10-01T10:00:18.0000078Z ✔ countOccurrences counts nothing for an empty needle (0.276641ms)
+test	Run node --test	2026-10-01T10:00:19.0000079Z ✔ padLeft pads to the width (3.544222ms)
+test	Run node --test	2026-10-01T10:00:20.0000080Z ✔ isPalindrome rejects other text (0.284207ms)
+test	Run node --test	2026-10-01T10:00:21.0000081Z ✔ reverse reverses characters (0.197259ms)
+test	Run node --test	2026-10-01T10:00:22.0000082Z ✔ padLeft leaves longer values alone (0.179474ms)
+test	Run node --test	2026-10-01T10:00:23.0000083Z ✔ reverse handles an empty string (0.225264ms)
+test	Run node --test	2026-10-01T10:00:24.0000084Z ✔ camelCase joins words (0.257781ms)
+test	Run node --test	2026-10-01T10:00:25.0000085Z ✔ camelCase lowercases a single word (0.171342ms)
+test	Run node --test	2026-10-01T10:00:26.0000086Z ✔ kebabCase joins words with dashes (0.341866ms)
+test	Run node --test	2026-10-01T10:00:27.0000087Z ✔ kebabCase trims surrounding space (0.195708ms)
+test	Run node --test	2026-10-01T10:00:28.0000088Z ℹ tests 87
+test	Run node --test	2026-10-01T10:00:29.0000089Z ℹ suites 0
+test	Run node --test	2026-10-01T10:00:30.0000090Z ℹ pass 86
+test	Run node --test	2026-10-01T10:00:31.0000091Z ℹ fail 1
+test	Run node --test	2026-10-01T10:00:32.0000092Z ℹ cancelled 0
+test	Run node --test	2026-10-01T10:00:33.0000093Z ℹ skipped 0
+test	Run node --test	2026-10-01T10:00:34.0000094Z ℹ todo 0
+test	Run node --test	2026-10-01T10:00:35.0000095Z ℹ duration_ms 168.036569
+test	Run node --test	2026-10-01T10:00:36.0000096Z 
+test	Run node --test	2026-10-01T10:00:37.0000097Z ✖ failing tests:
+test	Run node --test	2026-10-01T10:00:38.0000098Z 
+test	Run node --test	2026-10-01T10:00:39.0000099Z test at test/paginate.test.js:11:1
+test	Run node --test	2026-10-01T10:00:40.0000100Z ✖ paginate returns a full page (3.586132ms)
+test	Run node --test	2026-10-01T10:00:41.0000101Z   AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+test	Run node --test	2026-10-01T10:00:42.0000102Z   + actual - expected
+test	Run node --test	2026-10-01T10:00:43.0000103Z   
+test	Run node --test	2026-10-01T10:00:44.0000104Z     [
+test	Run node --test	2026-10-01T10:00:45.0000105Z       4,
+test	Run node --test	2026-10-01T10:00:46.0000106Z       5,
+test	Run node --test	2026-10-01T10:00:47.0000107Z   -   6
+test	Run node --test	2026-10-01T10:00:48.0000108Z     ]
+test	Run node --test	2026-10-01T10:00:49.0000109Z   
+test	Run node --test	2026-10-01T10:00:50.0000110Z       at TestContext.<anonymous> (file:///home/codeheist/Desktop/heall/demo/out/repo/test/paginate.test.js:12:10)
+test	Run node --test	2026-10-01T10:00:51.0000111Z       at Test.runInAsyncScope (node:async_hooks:227:14)
+test	Run node --test	2026-10-01T10:00:52.0000112Z       at Test.run (node:internal/test_runner/test:1201:25)
+test	Run node --test	2026-10-01T10:00:53.0000113Z       at Test.processPendingSubtests (node:internal/test_runner/test:831:18)
+test	Run node --test	2026-10-01T10:00:54.0000114Z       at Test.postRun (node:internal/test_runner/test:1330:19)
+test	Run node --test	2026-10-01T10:00:55.0000115Z       at Test.run (node:internal/test_runner/test:1258:12)
+test	Run node --test	2026-10-01T10:00:56.0000116Z       at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+test	Run node --test	2026-10-01T10:00:57.0000117Z     generatedMessage: true,
+test	Run node --test	2026-10-01T10:00:58.0000118Z     code: 'ERR_ASSERTION',
+test	Run node --test	2026-10-01T10:00:59.0000119Z     actual: [ 4, 5 ],
+test	Run node --test	2026-10-01T10:00:00.0000120Z     expected: [ 4, 5, 6 ],
+test	Run node --test	2026-10-01T10:00:01.0000121Z     operator: 'deepStrictEqual',
+test	Run node --test	2026-10-01T10:00:02.0000122Z     diff: 'simple'
+test	Run node --test	2026-10-01T10:00:03.0000123Z   }

@@ -21,6 +21,7 @@ type script struct {
 
 func (s *script) Name() string                  { return "script" }
 func (s *script) Prepare(context.Context) error { return nil }
+func (s *script) Close() error                  { return nil }
 func (s *script) Run(_ context.Context, _ string, argv []string) (sandbox.Result, error) {
 	s.calls = append(s.calls, strings.Join(argv, " "))
 	return s.results[argv[0]], s.err

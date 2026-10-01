@@ -25,14 +25,29 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 }
 
+// ExitCode maps the error from Execute to the process exit code.
+func ExitCode(err error) int {
+	var esc *Escalation
+	switch {
+	case err == nil:
+		return 0
+	case errors.As(err, &esc):
+		return ExitEscalated
+	}
+	return 1
+}
+
 // Execute runs the CLI. Ctrl-C cancels the command's context, so stages stop
 // and clean up their worktrees and containers instead of being killed.
 func Execute() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	err := rootCmd.ExecuteContext(ctx)
+	var esc *Escalation
 	switch {
 	case err == nil:
+	case errors.As(err, &esc):
+		// Already explained on the event stream.
 	case errors.Is(err, context.Canceled):
 		fmt.Fprintln(os.Stderr, "heall: interrupted; worktrees and containers were cleaned up")
 	default:
@@ -47,8 +62,8 @@ func init() {
 
 	rootCmd.AddCommand(
 		stub("run", "Run the full pipeline: triage, reproduce, locate, heal, deliver", 7, false),
-		stub("triage", "Parse a test log into structured failure info", 4, false),
-		stub("reproduce", "Confirm the failure reproduces in the sandbox and is not flaky", 4, false),
+		newTriageCmd(),
+		newReproduceCmd(),
 		newLocateCmd(),
 		stub("heal", "Ask the agent for a fix and verify it against the guardrails", 6, false),
 		stub("pr", "Open a draft pull request with the patch and evidence", 7, false),

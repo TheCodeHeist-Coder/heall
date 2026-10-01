@@ -37,13 +37,16 @@ type Runner interface {
 	// Prepare does one-off setup, such as pulling the image.
 	Prepare(ctx context.Context) error
 	Run(ctx context.Context, dir string, argv []string) (Result, error)
+	// Close removes anything the runner left behind. Call it once, after
+	// the last Run has returned.
+	Close() error
 }
 
 func New(cfg config.Sandbox) (Runner, error) {
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	switch cfg.Mode {
 	case "docker":
-		return &Docker{Image: cfg.Image, Timeout: timeout}, nil
+		return NewDocker(cfg.Image, timeout), nil
 	case "local":
 		return &Local{Timeout: timeout}, nil
 	}
@@ -98,6 +101,8 @@ func (l *Local) Name() string { return "local" }
 
 func (l *Local) Prepare(context.Context) error { return nil }
 
+func (l *Local) Close() error { return nil }
+
 func (l *Local) Run(ctx context.Context, dir string, argv []string) (Result, error) {
 	if len(argv) == 0 {
 		return Result{}, errors.New("empty command")
@@ -117,6 +122,36 @@ func (l *Local) Run(ctx context.Context, dir string, argv []string) (Result, err
 type Docker struct {
 	Image   string
 	Timeout time.Duration
+	// session labels every container this runner starts, so Close can find
+	// the ones a cancelled run left behind.
+	session string
+}
+
+func NewDocker(image string, timeout time.Duration) *Docker {
+	return &Docker{Image: image, Timeout: timeout, session: randomHex(8)}
+}
+
+const sessionLabel = "heall.session"
+
+// Close removes containers that outlived their run. Stopping the docker
+// client between "create" and "start" leaves a container that never ran and
+// that --rm never removes; nothing but a sweep by label catches those.
+func (d *Docker) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "ps", "--all", "--quiet",
+		"--filter", "label="+sessionLabel+"="+d.session).Output()
+	if err != nil {
+		return fmt.Errorf("list leftover containers: %w", err)
+	}
+	ids := strings.Fields(string(out))
+	if len(ids) == 0 {
+		return nil
+	}
+	if out, err := exec.CommandContext(ctx, "docker", append([]string{"rm", "--force"}, ids...)...).CombinedOutput(); err != nil {
+		return fmt.Errorf("remove leftover containers: %s", firstLine(out, err))
+	}
+	return nil
 }
 
 func (d *Docker) Name() string { return "docker (" + d.Image + ")" }
@@ -141,6 +176,7 @@ func (d *Docker) Run(ctx context.Context, dir string, argv []string) (Result, er
 	name := "heall-" + randomHex(6)
 	args := []string{
 		"run", "--rm", "--name", name,
+		"--label", sessionLabel + "=" + d.session,
 		"--network", "none",
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",

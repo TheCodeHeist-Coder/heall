@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"heall/internal/events"
@@ -17,6 +18,15 @@ type Printer struct {
 	// index maps a commit hash to its position in the range being searched.
 	index   map[string]int
 	commits []events.Commit
+	// good and bad label the two ends in the reproduce stage.
+	good, bad string
+	reproduce bool
+}
+
+// SetEnds tells the printer which commits are the known-good and the bad
+// one, so runs on them can be labelled.
+func (p *Printer) SetEnds(good, bad string) {
+	p.good, p.bad = good, bad
 }
 
 // New prints to w. Colour is used when w is a terminal and NO_COLOR is unset.
@@ -70,6 +80,40 @@ func (p *Printer) Handle(ev events.Event) {
 		return
 	}
 	switch d := payload.(type) {
+	case *events.TriageDone:
+		fmt.Fprintf(p.w, "%s %s\n", p.paint(bold, "triage"), d.TestName)
+		fmt.Fprintf(p.w, "  in %s\n", d.TestFile)
+		if len(d.SuspectFiles) > 0 {
+			fmt.Fprintf(p.w, "  files to look at first: %s\n", strings.Join(d.SuspectFiles, ", "))
+		}
+		for _, line := range strings.Split(d.Excerpt, "\n") {
+			fmt.Fprintf(p.w, "    %s\n", p.paint(gray, line))
+		}
+	case *events.ReproduceRun:
+		if !p.reproduce {
+			p.reproduce = true
+			fmt.Fprintf(p.w, "%s running the test on the bad and the good commit\n", p.paint(bold, "reproduce"))
+		}
+		label := "bad "
+		if d.SHA == p.good {
+			label = "good"
+		}
+		fmt.Fprintf(p.w, "    %s  %s %.10s  run %-3d %6s\n", p.verdict(d.Verdict), label, d.SHA, d.Attempt, seconds(d.DurationMS))
+	case *events.ReproduceDone:
+		switch {
+		case d.Reproduced:
+			fmt.Fprintf(p.w, "  %s failed %d of %d runs on the bad commit and passes on the good commit\n",
+				p.paint(green, "reproduced:"), d.Failures, d.Runs)
+		case d.Flaky:
+			fmt.Fprintf(p.w, "  %s failed %d of %d runs on the same commit\n", p.paint(yellow, "flaky:"), d.Failures, d.Runs)
+		default:
+			fmt.Fprintf(p.w, "  %s failed %d of %d runs on the bad commit\n", p.paint(yellow, "not confirmed:"), d.Failures, d.Runs)
+		}
+	case *events.Escalated:
+		fmt.Fprintf(p.w, "%s at %s: %s\n", p.paint(bold+";"+yellow, "escalated"), ev.Stage, d.Reason)
+		for _, line := range strings.Split(d.Diagnosis, "\n") {
+			fmt.Fprintf(p.w, "  %s\n", line)
+		}
 	case *events.LocateStarted:
 		p.commits = d.Commits
 		for i, c := range d.Commits {

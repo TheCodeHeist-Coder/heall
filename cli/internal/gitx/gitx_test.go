@@ -146,3 +146,43 @@ func TestWorktreesAreIndependent(t *testing.T) {
 		t.Errorf("%d worktrees left after cleanup", got)
 	}
 }
+
+func TestSnapshotReadsACommitWithoutCheckingItOut(t *testing.T) {
+	ctx := context.Background()
+	fx := gitxtest.New(t)
+	fx.Write("src/a.js", "export const a = 1; // marker-one\n")
+	old := fx.Commit("add a")
+	fx.Write("src/a.js", "export const a = 2;\n")
+	fx.Write("test/a.test.js", "test(\"a is two\", () => {});\n")
+	fx.Commit("change a")
+
+	repo, err := Open(ctx, fx.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := repo.Snapshot(ctx, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snap.Exists("src/a.js") || snap.Exists("test/a.test.js") || snap.Exists("src") {
+		t.Error("Exists should reflect the files of that commit only")
+	}
+	if content, err := snap.Read("src/a.js"); err != nil || !strings.Contains(content, "a = 1") {
+		t.Errorf("Read = %q, %v; want the old content", content, err)
+	}
+	if _, err := snap.Read("test/a.test.js"); err == nil {
+		t.Error("Read returned a file that does not exist at that commit")
+	}
+
+	head, err := repo.Snapshot(ctx, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, err := head.Find(`"a is two"`)
+	if err != nil || len(found) != 1 || found[0] != "test/a.test.js" {
+		t.Errorf("Find = %v, %v; want test/a.test.js", found, err)
+	}
+	if found, err := head.Find("marker-one"); err != nil || len(found) != 0 {
+		t.Errorf("Find = %v, %v; text from an older commit must not match", found, err)
+	}
+}

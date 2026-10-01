@@ -43,7 +43,7 @@ A commit is `{sha, subject, author, date}`.
 | `stage_done` | `status, duration_ms` | Status: `ok`, `escalated`, `error` |
 | `triage_done` | `test_name, test_file, suspect_files, excerpt` | |
 | `reproduce_run` | `sha, attempt, verdict, duration_ms` | One per run of the failing test |
-| `reproduce_done` | `reproduced, flaky, runs, failures, good_passes` | |
+| `reproduce_done` | `reproduced, flaky, runs, failures, good_passes` | `runs` counts completed runs on the bad commit; the stage stops early once the answer is known |
 | `locate_started` | `commits, workers` | Commits oldest first: first is known good, last is bad |
 | `round_started` | `round, lo, hi, probes` | `lo`/`hi` index into `commits`: newest known good, oldest known bad |
 | `commit_testing` | `sha, round, worker` | A worker picked the commit up |
@@ -120,7 +120,17 @@ Two rules keep the trust layer out of the agent's hands:
 2. Before delivering, the CLI verifies the winning patch again itself. It does
    not take the agent's `agent_done` at its word.
 
-## 4. Repo config
+## 4. Exit codes
+
+Every `heall` command uses the same exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | The stage succeeded and the pipeline can continue |
+| 1 | An error: bad arguments, Docker not running, a git failure |
+| 3 | Escalated: heall stopped on purpose because it could not prove something, and said why in an `escalated` event |
+
+## 5. Repo config
 
 Each repository being healed has a `.heall.yaml` (`examples/heall.yaml`). It
 holds the build and test commands and the allow and protect lists, so the CLI

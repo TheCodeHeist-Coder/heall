@@ -184,3 +184,56 @@ func (r *Repo) PruneWorktrees(ctx context.Context) error {
 	_, err := r.git(ctx, "worktree", "prune")
 	return err
 }
+
+// Snapshot is the set of files in one commit. It lets stages read the
+// repository as it was at that commit without checking it out.
+type Snapshot struct {
+	repo  *Repo
+	ctx   context.Context
+	ref   string
+	files map[string]bool
+}
+
+// Snapshot lists the files of ref.
+func (r *Repo) Snapshot(ctx context.Context, ref string) (*Snapshot, error) {
+	out, err := r.git(ctx, "ls-tree", "-r", "--name-only", "-z", ref)
+	if err != nil {
+		return nil, err
+	}
+	files := map[string]bool{}
+	for _, name := range strings.Split(out, "\x00") {
+		if name != "" {
+			files[name] = true
+		}
+	}
+	return &Snapshot{repo: r, ctx: ctx, ref: ref, files: files}, nil
+}
+
+func (s *Snapshot) Exists(path string) bool { return s.files[path] }
+
+func (s *Snapshot) Read(path string) (string, error) {
+	if !s.files[path] {
+		return "", fmt.Errorf("%s does not exist at %.10s", path, s.ref)
+	}
+	return s.repo.git(s.ctx, "show", s.ref+":"+path)
+}
+
+// Find returns the files whose content includes the literal text.
+func (s *Snapshot) Find(text string) ([]string, error) {
+	out, err := s.repo.git(s.ctx, "grep", "-l", "-z", "--fixed-strings", "-e", text, s.ref)
+	if err != nil {
+		// git grep exits 1 when nothing matches.
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var files []string
+	for _, name := range strings.Split(out, "\x00") {
+		if name = strings.TrimPrefix(name, s.ref+":"); name != "" {
+			files = append(files, name)
+		}
+	}
+	return files, nil
+}
