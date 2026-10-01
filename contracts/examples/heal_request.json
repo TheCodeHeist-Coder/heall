@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "run_id": "r-demo",
+  "repo_dir": "/tmp/demo-repo",
+  "worktree": "/tmp/heall-worktrees/r-demo-bad",
+  "heall_bin": "/usr/local/bin/heall",
+  "good": "a1b2c3d",
+  "bad": "f9e8d7c",
+  "failure": {
+    "test_name": "paginate returns the last partial page",
+    "test_file": "test/paginate.test.js",
+    "output": "not ok 3 - paginate returns the last partial page\n  expected: 3\n  actual: 2\n"
+  },
+  "culprit": {
+    "commit": {
+      "sha": "b2c3d4e",
+      "subject": "simplify page maths",
+      "author": "Ravi",
+      "date": "2026-09-02T09:00:00Z"
+    },
+    "diff": "--- a/src/paginate.js\n+++ b/src/paginate.js\n@@ -3 +3 @@\n-  return Math.ceil(total / size);\n+  return Math.floor(total / size);\n"
+  },
+  "allow": ["src/**"],
+  "protect": ["test/**", "**/*.test.js", "package.json", ".heall.yaml"],
+  "max_attempts": 3,
+  "model": "claude-opus-5-5",
+  "inject_bad_patch": false
+}

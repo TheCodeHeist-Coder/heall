@@ -1,0 +1,16 @@
+{
+  "attempt": 1,
+  "status": "rejected",
+  "guardrails": [
+    {
+      "name": "protected_paths",
+      "passed": false,
+      "detail": "patch touches test/paginate.test.js"
+    },
+    { "name": "allowlist", "passed": true, "detail": "" }
+  ],
+  "target_passed": false,
+  "suite_passed": false,
+  "new_failures": [],
+  "output": ""
+}

@@ -1,0 +1,19 @@
+# build output
+/bin/
+/cli/heall
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# run artefacts
+.heall/
+*.events.jsonl
+
+# generated demo repository
+/demo/repo/
+
+# secrets
+.env
+.env.*

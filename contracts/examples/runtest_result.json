@@ -1,0 +1,7 @@
+{
+  "verdict": "fail",
+  "exit_code": 1,
+  "duration_ms": 820,
+  "output": "not ok 3 - paginate returns the last partial page\n  expected: 3\n  actual: 2\n",
+  "truncated": false
+}

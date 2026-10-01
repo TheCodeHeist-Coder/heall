@@ -1,0 +1,30 @@
+version: 1
+
+# Exits non-zero when a commit has a syntax error, so bisect can skip it.
+build_cmd: ["sh", "-c", "for f in $(find src -name '*.js'); do node --check \"$f\" || exit 1; done"]
+test_cmd: ["node", "--test", "--test-reporter=tap"]
+test_one_cmd: ["node", "--test", "--test-reporter=tap", "--test-name-pattern={{test}}"]
+
+# A patch may only touch allowed paths, and never protected ones.
+allow:
+  - "src/**"
+protect:
+  - "test/**"
+  - "**/*.test.js"
+  - "package.json"
+  - ".heall.yaml"
+
+sandbox:
+  mode: docker # or "local"
+  image: node:24-alpine
+  timeout_seconds: 60
+
+locate:
+  workers: 6
+
+reproduce:
+  runs: 5
+
+heal:
+  max_attempts: 3
+  model: claude-opus-5-5
